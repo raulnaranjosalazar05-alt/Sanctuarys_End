@@ -150,7 +150,7 @@ function killMonster(m) {
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 3, null, 0.30); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 3, null, 0.30); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(80, 160) + depth * 14)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-2, 2), m.z + rand(-2, 2), 'potion', 1); if (Math.random() < 0.5) dropLoot(m.x, m.z + 1, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 0 : 1 });
   } else if (m.treasure) {
-    spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The hoard spills open!');
+    spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The hoard spills open!'); _ev('goblin');
     const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
   } else if (m.elite) {

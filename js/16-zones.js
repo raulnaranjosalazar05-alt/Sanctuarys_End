@@ -163,7 +163,7 @@ function openChest() {
   if (Math.random() < 0.4) dropLoot(chest.x + 1, chest.z + 1, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 0 : 1 });
 }
 function activateShrine(s) {
-  if (!s || s.used) return; s.used = true;
+  if (!s || s.used) return; s.used = true; _ev('shrine');
   const cr = s.mesh.userData.crystal; if (cr) { cr.material.color.setHex(0x555555); cr.material.emissive.setHex(0x222222); cr.material.emissiveIntensity = 0.05; }
   spawnExplosion(s.x, s.z, SHRINE_COL[s.type] || 0xffffff); sfx('level');
   if (s.type === 'empowered') { player.buffs.empUntil = now() + 30000; player.buffs.empMul = 1.25; floatText('Empowered!', player.x, player.z - 1, '#ff8a6a'); showMsg('Shrine of Power — +25% damage (30s)'); }
@@ -175,7 +175,7 @@ function activateShrine(s) {
 function payBounty() {
   for (let i = 0; i < 2; i++) { const ang = i / 2 * 6.28 + 0.6; let best = rollItem(curScale.ilvl + 2, null, 0.25); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.25); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(player.x + Math.cos(ang) * 3, player.z + Math.sin(ang) * 3, 'item', best); }
   dropLoot(player.x, player.z, 'gold', Math.round(rand(60, 120) + depth * 10)); dropLoot(player.x + rand(-2, 2), player.z + rand(-2, 2), 'potion', 1);
-  gainXP(Math.round(player.xpNext * 0.15)); showMsg('Bounty complete!'); sfx('level');
+  gainXP(Math.round(player.xpNext * 0.15)); showMsg('Bounty complete!'); sfx('level'); _ev('bounty');
 }
 let _objTxt = null;
 function renderObjective() {
@@ -185,7 +185,7 @@ function renderObjective() {
   if (s !== _objTxt._s) { _objTxt._s = s; _objTxt.textContent = s; _objTxt.style.display = s ? 'block' : 'none'; }
 }
 function enterDungeon(d) {
-  zone = 'dungeon'; depth = d; if (d > character.maxDepth) { character.maxDepth = d; } buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — Depth ' + d; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + 'Depth ' + d);
+  zone = 'dungeon'; depth = d; if (d > character.maxDepth) { character.maxDepth = d; } _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — Depth ' + d; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + 'Depth ' + d);
   if (depth === 666) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnDevil(depth); bossActive = true; setTimeout(() => showMsg('The Devil of the Inferno bars the way…'), 900); }
   else if (depth % 5 === 0) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnBoss(depth); bossActive = true; setTimeout(() => showMsg('A guardian blocks the way down…'), 900); }
   else { if (d_deeperPortal) d_deeperPortal.group.visible = true; floorObj = rollFloorObjective(depth); if (floorObj && floorObj.kind === 'champion') { spawnChampion(depth); setTimeout(() => showMsg('A Champion stalks this floor…'), 900); } }

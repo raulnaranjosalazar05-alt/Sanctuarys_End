@@ -10,7 +10,29 @@ function setSkillTab(name) {
   _skTab = name;
   document.querySelectorAll('#skillTabs .tab').forEach(t => t.classList.toggle('on', t.dataset.sktab === name));
   document.querySelectorAll('#skillPanel .skPane').forEach(p => p.style.display = (p.dataset.skpane === name) ? 'block' : 'none');
-  if (name === 'forest') renderSkillTree(); else renderAbilities();
+  if (name === 'forest') renderSkillTree(); else if (name === 'journal') renderJournal(); else renderAbilities();
+}
+function renderJournal() {
+  const host = document.getElementById('journalBody'); if (!host || !character) return;
+  const a = character.ach || { u: {}, n: {} };
+  const done = ACH_DEFS.filter(d => a.u[d.id]).length;
+  const note = document.getElementById('journalNote'); if (note) note.textContent = done + '/' + ACH_DEFS.length + ' deeds chronicled — each unlock pays gold or ✦ Dust.';
+  let h = '';
+  for (const d of ACH_DEFS) {
+    const un = !!a.u[d.id]; const need = d.n || 1; const cur = un ? need : Math.min(a.n[d.ev] || 0, need);
+    const pct = d.check ? (un ? 100 : 0) : Math.round(cur / need * 100);
+    const rew = d.reward ? ((d.reward.gold ? '+' + d.reward.gold + 'g ' : '') + (d.reward.dust ? '+' + d.reward.dust + '✦' : '')) : '';
+    h += `<div class="row" style="align-items:center${un ? '' : ';opacity:.62'}">
+      <div class="ric" style="font-size:22px">${d.ico}</div>
+      <div style="flex:1;min-width:0">
+        <div class="rname" style="color:${un ? '#ffe27a' : '#c8b89a'}">${d.name} ${un ? '✓' : ''}</div>
+        <div style="color:#8a7a5a;font-size:11px">${d.desc}${d.check ? '' : ' · ' + cur + '/' + need}</div>
+        <div style="height:4px;background:rgba(0,0,0,.45);border-radius:2px;margin-top:3px"><div style="height:100%;width:${pct}%;background:${un ? '#5ad65a' : '#8a6a2a'};border-radius:2px"></div></div>
+      </div>
+      <div class="rprice" style="color:#b9a6ff;font-size:11px">${rew}</div>
+    </div>`;
+  }
+  host.innerHTML = h;
 }
 function toggleSkill(tab) { const o = !skillOpen; closeAll(); if (o) { skillOpen = true; skillPanel.style.display = 'block'; setSkillTab(tab || _skTab); } }
 function openSkillPanel(tab) { if (!skillOpen) toggleSkill(tab); else setSkillTab(tab); }
