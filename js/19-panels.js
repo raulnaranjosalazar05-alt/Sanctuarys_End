@@ -159,7 +159,16 @@ function renderSmith() {
       html += atMax ? `<div class="smithAct">Fully upgraded — <b>+${cur}%</b> (MAX ${max})</div>` : `<div class="smithAct"><span>+${cur}% → <b>+${nxt}%</b></span><span class="rprice">${cost} g</span><div class="rbtn${player.gold >= cost ? '' : ' dis'}" id="smithDo">Upgrade</div></div>`;
     } else if (smithTab === 'reforge') {
       if (!reforgeable(it)) html += `<div class="smithAct" style="color:#6a5a44">${RARITY_NAME[it.rarity] || it.rarity} gear can't be reforged — only common, magic &amp; rare.</div>`;
-      else { const rc = reforgeCost(it), can = player.gold >= rc.gold && (character.materials || 0) >= rc.dust; html += `<div class="smithAct"><span>Reroll all affixes</span><span class="rprice">${rc.gold}g · ${rc.dust}✦</span><div class="rbtn${can ? '' : ' dis'}" id="smithDo" style="border-color:#6a4aa0">Reforge</div></div>`; }
+      else {
+        const rc = reforgeCost(it), can = player.gold >= rc.gold && (character.materials || 0) >= rc.dust; html += `<div class="smithAct"><span>Reroll all affixes</span><span class="rprice">${rc.gold}g · ${rc.dust}✦</span><div class="rbtn${can ? '' : ' dis'}" id="smithDo" style="border-color:#6a4aa0">Reforge</div></div>`;
+        // targeted Dust crafting: reroll ONE affix's value, or imbue a chosen affix (best of two rolls)
+        const keys = Object.keys(it.affixes || {}).filter(k => AFFIXES[k]); const dust = character.materials || 0;
+        html += `<div class="ptsNote" style="margin-top:12px">Targeted crafting — ✦ Dust only</div>`;
+        const rrc = rerollAffixCost(it);
+        for (const k of keys) html += `<div class="row"><div class="rname">+${it.affixes[k]} ${AFFIXES[k].label}</div><div class="rprice">${rrc}✦</div><div class="rbtn${dust >= rrc ? '' : ' dis'}" data-raffix="${k}">Reroll</div></div>`;
+        const ic = imbueAffixCost(it);
+        html += `<div class="row"><div class="rname">Imbue <span style="color:#8a7a5a;font-size:11px">(add or replace a chosen affix — best of two rolls)</span></div><select id="imbueSel" style="background:#0d0a06;border:1px solid #4a3a5a;color:#d8c8ff;border-radius:4px;padding:4px;max-width:170px">${AFFIX_KEYS.map(k => `<option value="${k}">${AFFIXES[k].label}</option>`).join('')}</select><div class="rprice">${ic}✦</div><div class="rbtn${dust >= ic ? '' : ' dis'}" id="imbueDo">Imbue</div></div>`;
+      }
     } else if (smithTab === 'socket') {
       const max = SOCKET_MAX[it.slot] || 0, cur = (it.sockets || []).length;
       if (!max) html += `<div class="smithAct" style="color:#6a5a44">This slot can't hold sockets.</div>`;
@@ -172,6 +181,10 @@ function renderSmith() {
   }
   body.innerHTML = html;
   if (it) { const rn = body.querySelector('.smithSlot .rname'); if (rn) bindTip(rn, it); const db = document.getElementById('smithDo'); if (db) db.onclick = smithAction; }
+  if (it && smithTab === 'reforge' && reforgeable(it)) {
+    body.querySelectorAll('[data-raffix]').forEach(b => { b.onclick = () => { const c = rerollAffixCost(it); if ((character.materials || 0) < c) return; if (!rerollAffix(it, b.dataset.raffix)) return; character.materials -= c; if (where === 'eq') recompute(); sfx('level'); renderSmith(); updatePips(); saveProgress(false); }; });
+    const ib = document.getElementById('imbueDo'); if (ib) ib.onclick = () => { const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('imbueSel')); const c = imbueAffixCost(it); if (!sel || (character.materials || 0) < c) return; if (!imbueAffix(it, sel.value)) return; character.materials -= c; if (where === 'eq') recompute(); sfx('level'); renderSmith(); updatePips(); saveProgress(false); };
+  }
   if (smithTab === 'salvage') {
     const isJunk = j => (j.rarity === 'common' || j.rarity === 'magic') && !j.lock;
     const junk = character.inventory.filter(isJunk);

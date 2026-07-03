@@ -117,6 +117,22 @@ const UNIQUE_DEFS = [
   { slot: 'boots', name: 'Stormchaser Boots', base: 7, affixes: { ms: 12, dex: 6 }, effect: 'movespeed', effVal: 0.22, desc: '+22% movement speed.' },
   { slot: 'amulet', name: 'Aegis Pendant', base: 0, affixes: { vit: 12, allRes: 8 }, effect: 'manaShield', effVal: 0.25, desc: 'Absorbs 25% of incoming damage with mana.' },
   { slot: 'ring', name: 'Sanguine Loop', base: 0, affixes: { hp: 24, dmg: 5 }, effect: 'lifesteal', effVal: 0.07, desc: 'Heals 7% of damage dealt.' },
+  /* v50: build-transforming uniques on effect keys recompute already resolves but no item granted */
+  { slot: 'amulet', name: 'Echo of the Archon', base: 0, affixes: { eng: 14, skilldmg: 12 }, effect: 'echo', effVal: 1, desc: 'Your spells echo, casting a second time.' },
+  { slot: 'armor', name: 'Rimeheart Shell', base: 15, affixes: { armor: 16, coldRes: 15 }, effect: 'chillaura', effVal: 1, desc: 'Nearby enemies are chilled by your mere presence.' },
+  { slot: 'weapon', name: 'Cataclysm Edge', base: 15, affixes: { dmg: 12, fireDmg: 10 }, effect: 'deathnova', effVal: 0.9, desc: 'Slain foes erupt for 90% of your damage.' },
+  { slot: 'offhand', name: 'Aegis of the Last Vigil', base: 12, affixes: { vit: 12, allRes: 8 }, effect: 'manaShield', effVal: 0.35, desc: 'Absorbs 35% of incoming damage with mana.' },
+];
+/* Legendary effects that can land on deep RARES (ilvl 12+, ~8%): drawn from effect keys that already resolve
+   in recompute/combat, at ~60% of unique magnitudes — build-bending without replacing uniques. */
+const RARE_EFFECTS = [
+  { effect: 'lifesteal', effVal: 0.05, desc: 'Heals 5% of damage dealt.' },
+  { effect: 'thorns', effVal: 10, desc: 'Reflects 10 damage to melee attackers.' },
+  { effect: 'haste', effVal: 0.08, desc: '+8% attack speed.' },
+  { effect: 'pierce', effVal: 1, desc: 'Attacks pierce 1 additional enemy.' },
+  { effect: 'deathnova', effVal: 0.3, desc: 'Slain foes erupt for 30% of your damage.' },
+  { effect: 'manaShield', effVal: 0.15, desc: 'Absorbs 15% of incoming damage with mana.' },
+  { effect: 'movespeed', effVal: 0.12, desc: '+12% movement speed.' },
 ];
 const SET_DEFS = {
   warden: { name: "Warden's Vigil", pieces: ['helm', 'armor', 'gloves', 'boots'], bonuses: { 2: { vit: 15, armor: 12 }, 3: { str: 12, hp: 40 }, 4: { vit: 30, armor: 30, effect: 'thorns', effVal: 12 } } },
@@ -124,6 +140,10 @@ const SET_DEFS = {
   shadow: { name: 'Shadowdancer', pieces: ['weapon', 'gloves', 'boots', 'ring'], bonuses: { 2: { dex: 15, crit: 6 }, 3: { dmg: 14 }, 4: { crit: 12, effect: 'critdmg', effVal: 1 } } },
   emberwalker: { name: 'Emberwalker', pieces: ['weapon', 'helm', 'gloves', 'boots'], bonuses: { 2: { ias: 8, crit: 5 }, 3: { dmg: 16 }, 4: { burnOnHit: 25, effect: 'haste', effVal: 0.12 } } },
   stoneguard: { name: 'Stoneguard', pieces: ['helm', 'armor', 'boots', 'amulet'], bonuses: { 2: { armor: 18, vit: 12 }, 3: { hp: 60 }, 4: { allRes: 15, effect: 'manaShield', effVal: 0.2 } } },
+  /* v50: six-piece class-themed sets (possible now that the offhand slot exists) */
+  juggernaut: { name: "Juggernaut's Resolve", pieces: ['weapon', 'offhand', 'helm', 'armor', 'gloves', 'boots'], bonuses: { 2: { str: 15, armor: 15 }, 4: { hp: 80, dmg: 12 }, 6: { dmg: 25, effect: 'lifesteal', effVal: 0.1 } } },
+  stormcaller: { name: "Stormcaller's Vestments", pieces: ['weapon', 'offhand', 'helm', 'armor', 'ring', 'amulet'], bonuses: { 2: { eng: 18, mp: 25 }, 4: { skilldmg: 15, cdr: 8 }, 6: { skilldmg: 25, effect: 'echo', effVal: 1 } } },
+  nightprowler: { name: "Nightprowler's Kit", pieces: ['weapon', 'offhand', 'gloves', 'boots', 'ring', 'amulet'], bonuses: { 2: { dex: 15, ias: 8 }, 4: { crit: 8, ms: 10 }, 6: { critDmg: 40, effect: 'critdmg', effVal: 1 } } },
 };
 /* ---------- gems + sockets (slot-dependent: a gem's effect depends on where it's socketed) ----------
    A socketed gem grants one EXISTING affix key, so it folds into recompute's bonus map for free.
@@ -231,6 +251,7 @@ function rollItem(ilvl, forceSlot, quality) {
   else if (slot === 'weapon' && !WEAPON_BASES.caster.includes(base) && Math.random() < 0.4) { item.h2 = true; item.baseStat = Math.round(item.baseStat * 1.4); } // two-handed roll: locks the offhand, hits ~40% harder
   const [lo, hi] = RARITY_AFFIX[rarity]; const count = randi(lo, hi); const pool = [...AFFIX_KEYS];
   for (let i = 0; i < count; i++) { if (!pool.length) break; const k = pool.splice(randi(0, pool.length - 1), 1)[0]; item.affixes[k] = affixRoll(k, ilvl, rarity); }
+  if (rarity === 'rare' && ilvl >= 12 && Math.random() < 0.08) { const fx = choice(RARE_EFFECTS); item.effect = fx.effect; item.effVal = fx.effVal; item.effectDesc = '⚜ ' + fx.desc; } // legendary-touched rare
   let name = base;
   if (rarity === 'magic') { name = (Math.random() < .5 ? choice(PREFIX) + ' ' : '') + base; if (name === base) name = base + ' ' + choice(SUFFIX); }
   else if (rarity === 'rare') { name = choice(PREFIX) + ' ' + base + ' ' + choice(SUFFIX); }
@@ -267,6 +288,14 @@ function reforgeItem(it) {
   it.name = reforgeName(it);
   return it;
 }
+/* ---- targeted Dust crafting (Smith · Reforge tab): per-affix surgery instead of the full random reroll ----
+   Same rarity gate as reforge (common/magic/rare — set/unique affixes are hand-tuned identity). Dust-only. */
+const rerollAffixCost = it => 8 + (RTIER[it.rarity] || 1) * 3;
+const imbueAffixCost = it => 20 + (RTIER[it.rarity] || 1) * 5;
+/** Reroll ONE affix's value in place — key kept, sibling affixes untouched. */
+function rerollAffix(it, key) { if (!it || !it.affixes || !(key in it.affixes) || !AFFIXES[key]) return false; it.affixes[key] = affixRoll(key, it.ilvl, it.rarity); return true; }
+/** Add (or replace) a CHOSEN affix at a best-of-two roll. */
+function imbueAffix(it, key) { if (!it || !AFFIXES[key]) return false; if (!it.affixes) it.affixes = {}; it.affixes[key] = Math.max(affixRoll(key, it.ilvl, it.rarity), affixRoll(key, it.ilvl, it.rarity)); return true; }
 /** @param {Item} it @returns {number} */
 function sellValue(it) { return Math.max(2, Math.round(itemScore(it) * 0.5)); }
 /** @param {Item} it @returns {number} */

@@ -48,5 +48,5 @@ const SAVE = {
   deleteSlot(i) { this._data.slots[i] = null; this.persist(); }
 };
 SAVE.load();
-let currentSlot = null, character = null; const INV_CAP = 80, STASH_CAP = 80;
+let currentSlot = null, character = null; const INV_CAP = 80, STASH_CAP = 240; /* stash: 3 tabs × 80 (v50) */
 let difficulty = SAVE._data.settings.difficulty;

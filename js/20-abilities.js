@@ -97,14 +97,26 @@ function refundRunes() {
   let refunded = 0; for (const sid in (character.skillRunes || {})) { const tree = SKILL_RUNES[sid]; if (!tree) continue; for (const nid in character.skillRunes[sid]) { const node = tree.nodes[nid]; if (node) refunded += (character.skillRunes[sid][nid] || 0) * node.cost; } }
   character.skillRunes = {}; character.abilityPoints = (character.abilityPoints || 0) + refunded; invalidateRunes(); renderSkillbar(); updatePips(); renderAbilities(); showMsg('Refunded ' + refunded + ' ability point' + (refunded === 1 ? '' : 's')); saveProgress(false);
 }
-let vendorStock = [], vendorTab = 'buy', vendorTier = 1, vendorStockTier = 1;
-function refreshVendor(tier) { tier = tier || 1; vendorStockTier = tier; vendorStock = []; const bump = (tier - 1) * 7, q = tier >= 2 ? 0.35 : 0; for (let i = 0; i < 6; i++) vendorStock.push(rollItem(Math.max(1, player.level + randi(-1, 2)) + bump, null, q)); }
+let vendorStock = [], vendorTab = 'buy', vendorTier = 1, vendorStockTier = 1, _relicOfDay = null;
+function refreshVendor(tier) { tier = tier || 1; vendorStockTier = tier; vendorStock = []; const bump = (tier - 1) * 7, q = tier >= 2 ? 0.35 : 0; for (let i = 0; i < 6; i++) vendorStock.push(rollItem(Math.max(1, player.level + randi(-1, 2)) + bump, null, q)); if (tier >= 2) _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2)); }
+function _giveBought(it) { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return false; } character.inventory.push(it); showMsg(it.name + ' acquired'); if (invOpen) renderInv(); updatePips(); return true; }
 function renderVendor() {
   if (invOpen) renderInv(); /* keep the paired inventory pane in sync after a buy/sell */
   const body = document.getElementById('vendorBody'); body.innerHTML = `<div style="color:#ffe27a;margin-bottom:10px">Your gold: ${player.gold} <span style="color:#b9a6ff">· ✦ ${character.materials || 0} Dust</span></div>`;
   if (vendorTier >= 2) body.innerHTML += `<div style="color:#ff6ad0;margin-bottom:8px;font-size:13px">✦ Exotic wares — rarer, higher item level, premium prices.</div>`;
   if (vendorTab === 'buy') {
     body.innerHTML += `<div style="color:#9a8a6a;margin-bottom:8px;font-size:13px">Need potions? Visit the 🔥 cauldron in town to refill for free.</div>`;
+    if (vendorTier >= 2) { /* the Exotic Merchant is the Dust shop — the sink the salvage economy feeds. NOTE: appended via createElement AFTER every innerHTML+= write (innerHTML re-parses the body and would strip these handlers). */
+      const dust = character.materials || 0;
+      if (!_relicOfDay) _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2));
+      const caches = [
+        { ico: '🟠', name: 'Exotic Cache', sub: 'a random unique', cost: 120, act: () => _giveBought(buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + randi(1, 3)))) },
+        { ico: '🟢', name: 'Set Cache', sub: 'a random set piece', cost: 80, act: () => { const sid = choice(Object.keys(SET_DEFS)); return _giveBought(buildSetItem(sid, choice(SET_DEFS[sid].pieces), Math.max(3, player.level + randi(1, 3)))); } },
+        { ico: '💎', name: 'Gem Cache', sub: 'three quality gems', cost: 45, act: () => { character.gems = character.gems || {}; for (let i = 0; i < 3; i++) { const g = choice(GEM_KEYS) + ':' + randi(1, 2); character.gems[g] = (character.gems[g] || 0) + 1; } showMsg('Three gems pocketed'); if (invOpen) renderInv(); return true; } },
+      ];
+      caches.forEach((c, i) => { const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${c.ico}</div><div class="rname">${c.name} <span style="color:#8a7a5a;font-size:11px">(${c.sub})</span></div><div class="rprice" style="color:#b9a6ff">${c.cost}✦</div><div class="rbtn${dust >= c.cost ? '' : ' dis'}" data-cache="${i}">Buy</div>`; row.querySelector('.rbtn').onclick = () => { if ((character.materials || 0) < c.cost) return; if (!c.act()) return; character.materials -= c.cost; sfx('gold'); renderVendor(); updatePips(); saveProgress(false); }; body.appendChild(row); });
+      { const row = document.createElement('div'); row.className = 'row'; row.style.background = 'rgba(40,20,40,.4)'; row.innerHTML = `<div class="ric">☀️</div><div class="rname rc-unique">Relic of the Day: ${_relicOfDay.name} <span style="color:#8a7a5a;font-size:11px">(restock to reroll)</span></div><div class="rprice" style="color:#b9a6ff">200✦</div><div class="rbtn${(character.materials || 0) >= 200 ? '' : ' dis'}" data-relic="1">Buy</div>`; bindTip(row.querySelector('.rname'), _relicOfDay); row.querySelector('.rbtn').onclick = () => { if ((character.materials || 0) < 200 || !_relicOfDay) return; if (!_giveBought(_relicOfDay)) return; character.materials -= 200; _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2)); sfx('gold'); renderVendor(); updatePips(); saveProgress(false); }; body.appendChild(row); }
+    }
     const reCost = 40 + player.level * 8; const reRow = document.createElement('div'); reRow.className = 'row'; reRow.innerHTML = `<div class="ric">🔄</div><div class="rname">Restock wares <span style="color:#8a7a5a;font-size:11px">(reroll the merchant's items)</span></div><div class="rprice">${reCost} g</div><div class="rbtn${player.gold >= reCost ? '' : ' dis'}" id="restockBtn">Reroll</div>`; body.appendChild(reRow);
     document.getElementById('restockBtn').onclick = () => { if (player.gold < reCost) return; player.gold -= reCost; refreshVendor(vendorTier); goldTxt.textContent = player.gold + ' g'; renderVendor(); saveProgress(false); }; /* pass the active tier so a paid reroll at an Exotic (tier ≥ 2) merchant keeps its premium stock instead of silently dropping to tier 1 */
     vendorStock.forEach((it, idx) => { const price = buyPrice(it); const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${SLOT_ICON[it.slot]}</div><div class="rname rc-${it.rarity}">${it.name}</div><div class="rprice">${price} g</div><div class="rbtn${player.gold >= price && character.inventory.length < character.invMax ? '' : ' dis'}" data-buy="${idx}">Buy</div>`; bindTip(row.querySelector('.rname'), it); body.appendChild(row); });
@@ -138,11 +150,22 @@ document.getElementById('jewelerTabReroll').onclick = () => setJewelerTab('rerol
 document.getElementById('jewelerTabSocket').onclick = () => setJewelerTab('socket');
 document.getElementById('jewelerTabCombine').onclick = () => setJewelerTab('combine');
 document.querySelectorAll('#invTabs .tab').forEach(el => el.onclick = () => setInvTab(el.dataset.invtab));
+let stashTab = 0; // 3 tabs × 80 slots — the stash stays ONE flat array; tabs are slice views (save-compatible)
 function renderStash() {
   const bp = document.getElementById('bpGrid'), st = document.getElementById('stGrid'); bp.innerHTML = ''; st.innerHTML = '';
   const lockBadge = it => (it && it.lock ? '<span style="position:absolute;top:1px;right:3px;font-size:9px">🔒</span>' : '');
+  const sn = document.getElementById('stashNote'); if (sn) { let gems = 0; for (const k in (character.gems || {})) gems += character.gems[k]; sn.textContent = `Stash ${character.stash.length}/${character.stashMax} · ✦ ${character.materials || 0} Dust · 💎 ${gems} gems`; }
+  const tabs = document.getElementById('stashTabs');
+  if (tabs) { tabs.innerHTML = ''; const pages = Math.ceil(STASH_CAP / 80); for (let t = 0; t < pages; t++) { const b = document.createElement('div'); b.className = 'tab' + (stashTab === t ? ' on' : ''); const lo = t * 80; b.textContent = 'Tab ' + (t + 1) + (character.stashMax <= lo ? ' 🔒' : ''); b.onclick = () => { stashTab = t; renderStash(); }; tabs.appendChild(b); } }
   for (let i = 0; i < character.invMax; i++) { const it = character.inventory[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] + lockBadge(it) : ''; if (it) { bindTip(c, it); c.onclick = () => { if (character.stash.length >= character.stashMax) { showMsg('Stash full'); return; } character.stash.push(it); character.inventory.splice(i, 1); renderStash(); saveProgress(false); }; c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; renderStash(); saveProgress(false); }; } bp.appendChild(c); }
-  for (let i = 0; i < character.stashMax; i++) { const it = character.stash[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] + lockBadge(it) : ''; if (it) { bindTip(c, it); c.onclick = () => { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.stash.splice(i, 1); renderStash(); updatePips(); saveProgress(false); }; c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; renderStash(); saveProgress(false); }; } st.appendChild(c); }
+  const start = stashTab * 80;
+  for (let k = 0; k < 80; k++) {
+    const i = start + k; const c = document.createElement('div');
+    if (i >= character.stashMax) { c.className = 'cell'; c.style.opacity = '0.22'; c.title = 'Buy more stash slots below'; st.appendChild(c); continue; }
+    const it = character.stash[i]; c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] + lockBadge(it) : '';
+    if (it) { bindTip(c, it); c.onclick = () => { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.stash.splice(i, 1); renderStash(); updatePips(); saveProgress(false); }; c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; renderStash(); saveProgress(false); }; }
+    st.appendChild(c);
+  }
   const sb = document.getElementById('slotBuyBar'); if (sb) {
     const bpCost = 100 + (character.invMax - 40) * 25, stCost = 100 + (character.stashMax - 40) * 25, bpMax = character.invMax >= INV_CAP, stMax = character.stashMax >= STASH_CAP;
     sb.innerHTML = `<div class="row" style="flex:1"><div class="rname">🎒 Backpack ${character.invMax}/${INV_CAP}</div>${bpMax ? '<div class="rprice">MAX</div>' : `<div class="rprice">${bpCost} g</div><div class="rbtn${player.gold >= bpCost ? '' : ' dis'}" id="buyBp">+4</div>`}</div>` +
