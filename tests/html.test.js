@@ -32,26 +32,61 @@ test('import map parses and defines the three specifiers game.js needs', () => {
   }
 });
 
-test('all import-map URLs pin a single three@x.y.z version', () => {
+test('all import-map URLs are repo-relative, share one vendored version dir, and exist on disk', () => {
+  // v50 self-hosts three.js: a CDN URL sneaking back in (or a vendored file going missing) must fail CI.
+  // This is a STRONGER contract than the old version-pin check — same-origin + on-disk + single version.
   const map = importMap();
-  const urls = Object.values(map.imports);
   const versions = new Set();
-  for (const url of urls) {
-    const v = url.match(/three@(\d+\.\d+\.\d+)/);
-    assert.ok(v, `import URL is not a pinned three@x.y.z: ${url}`);
+  for (const [spec, url] of Object.entries(map.imports)) {
+    assert.ok(!/^(https?:)?\/\//i.test(url), `import "${spec}" points at a remote URL: ${url}`);
+    const v = url.match(/vendor\/three-(\d+\.\d+\.\d+)\//);
+    assert.ok(v, `import "${spec}" is not under a vendor/three-x.y.z/ dir: ${url}`);
     versions.add(v[1]);
+    const target = path.join(__dirname, '..', url);
+    if (url.endsWith('/')) assert.ok(fs.statSync(target).isDirectory(), `prefix dir missing on disk: ${url}`);
+    else assert.ok(fs.statSync(target).isFile(), `vendored file missing on disk: ${url}`);
   }
-  assert.equal(versions.size, 1, `all three URLs must share one version, saw: ${[...versions].join(', ')}`);
+  assert.equal(versions.size, 1, `all imports must share one vendored version, saw: ${[...versions].join(', ')}`);
 });
 
-test('every SRI integrity key corresponds to a declared import URL', () => {
+test('the vendored addon closure is complete (every relative import resolves on disk)', () => {
+  // KTX2Loader & friends pull transitive relative imports (libs/, math/, utils/). A partial vendor copy
+  // loads fine in CI and 404s in the browser — walk the real import graph from the shim's entry points.
   const map = importMap();
-  if (!map.integrity) return; // integrity block is optional (progressive enhancement) — nothing to check
-  const importUrls = new Set(Object.values(map.imports));
-  for (const url of Object.keys(map.integrity)) {
-    assert.ok(importUrls.has(url), `integrity URL has no matching import (version bump drift?): ${url}`);
-    assert.match(map.integrity[url], /^sha(256|384|512)-/, `integrity value is not an SRI hash: ${url}`);
+  const root = path.join(__dirname, '..');
+  const shim = HTML.match(/<script type="module">([\s\S]*?)<\/script>/i);
+  assert.ok(shim, 'module shim not found');
+  const entries = [];
+  const specRe = /from\s*['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = specRe.exec(shim[1]))) entries.push(m[1]);
+  assert.ok(entries.length >= 7, 'shim should import the core builds + addons');
+  const resolveSpec = (spec) => {
+    if (map.imports[spec]) return map.imports[spec];
+    for (const [pre, target] of Object.entries(map.imports)) {
+      if (pre.endsWith('/') && spec.startsWith(pre)) return target + spec.slice(pre.length);
+    }
+    return null;
+  };
+  const queue = entries.map(resolveSpec).filter(Boolean);
+  const seen = new Set();
+  const impRe = /(?:import|export)[^'"]*?from\s*['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  while (queue.length) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const abs = path.join(root, rel);
+    assert.ok(fs.existsSync(abs), `vendored module missing: ${rel}`);
+    const src = fs.readFileSync(abs, 'utf8');
+    let im;
+    while ((im = impRe.exec(src))) {
+      const spec = im[1] || im[2];
+      if (!spec) continue;
+      if (spec.startsWith('.')) queue.push(path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)));
+      else if (resolveSpec(spec)) queue.push(resolveSpec(spec));
+    }
   }
+  assert.ok(seen.size >= 10, `closure suspiciously small (${seen.size} files)`);
 });
 
 test('the window.THREE / window.TSL shim and the classic game script are both present', () => {

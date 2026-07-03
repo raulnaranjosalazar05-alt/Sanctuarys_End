@@ -7,8 +7,8 @@ original authors' licenses.
 ## Libraries
 
 - **Three.js** — 3D rendering engine. © mrdoob and contributors. MIT License.
-  Loaded from a CDN (unpkg, pinned with integrity hashes) at runtime.
-  https://threejs.org
+  Self-hosted (vendored) under `vendor/three-0.184.0/` — see the README and
+  LICENSE there. https://threejs.org
 
 ## 3D Models (embedded in `sanctuary.html`)
 
