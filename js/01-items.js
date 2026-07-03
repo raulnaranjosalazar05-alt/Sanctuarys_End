@@ -5,14 +5,26 @@ const SLOTS = ['weapon', 'offhand', 'helm', 'armor', 'gloves', 'boots', 'ring', 
    Pure (no THREE/DOM) so tests/objectives.test.js can load them from the browser-free prefix. */
 function rollFloorObjective(depth) {
   if (depth <= 1 || depth % 5 === 0 || depth === 666) return null; // boss floors + the opening floor get no bounty
-  if (Math.random() < 0.5) return { kind: 'champion', done: false };
+  const r = Math.random();
+  if (r < 0.35) return { kind: 'champion', done: false };
+  if (r < 0.55) return { kind: 'elites', target: randi(2, 3), count: 0, done: false };
+  if (r < 0.7) return { kind: 'shrines', target: 2, count: 0, done: false };
   return { kind: 'slay', target: clamp(6 + (depth >> 1), 6, 18), count: 0, done: false };
 }
-// Advance a bounty by one kill of `kind` ('kill' | 'champion'); returns true on the transition to complete (once).
+/* Wild-region hunt: the overworld counterpart to floor bounties (rolled per enterWild). */
+function rollWildObjective(lvl) {
+  if (Math.random() < 0.5) return { kind: 'hunt', target: randi(8, 14), count: 0, done: false };
+  return { kind: 'stalker', done: false };
+}
+// Advance a bounty by one signal ('kill' | 'champion' | 'elite' | 'shrine'); returns true on the transition to complete (once).
 function bountyProgress(obj, kind) {
   if (!obj || obj.done) return false;
   if (obj.kind === 'slay' && kind === 'kill') { if (++obj.count >= obj.target) { obj.done = true; return true; } return false; }
   if (obj.kind === 'champion' && kind === 'champion') { obj.done = true; return true; }
+  if (obj.kind === 'elites' && kind === 'elite') { if (++obj.count >= obj.target) { obj.done = true; return true; } return false; }
+  if (obj.kind === 'shrines' && kind === 'shrine') { if (++obj.count >= obj.target) { obj.done = true; return true; } return false; }
+  if (obj.kind === 'hunt' && kind === 'kill') { if (++obj.count >= obj.target) { obj.done = true; return true; } return false; }
+  if (obj.kind === 'stalker' && kind === 'champion') { obj.done = true; return true; }
   return false;
 }
 const SLOT_ICON = { weapon: '⚔️', offhand: '🔰', helm: '🪖', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿' };

@@ -1,6 +1,7 @@
 /* ================= ZONES ================= */
 let zone = 'town', depth = 0;
 let floorObj = null, shrines = [], shrineGroup = null; // per-floor bounty + dungeon shrines (ephemeral, rebuilt each enterDungeon)
+let wildObj = null; // per-visit wilderness hunt (rolled by enterWild)
 function isCombat() { return zone === 'wild' || zone === 'dungeon'; }
 let _fieldEpoch = 0; /* bumped on every field teardown; deferred combat ticks (blizzard/lingering fields) capture it and bail if it changed, so a cast can't keep detonating after a floor/zone change */
 function clearField() { _fieldEpoch++; for (const d of _dying) removeMesh(d.g); _dying.length = 0; for (const m of monsters) removeMob(m.mesh); for (const p of projectiles) removeMesh(p.mesh); for (const l of loots) removeMesh(l.mesh); for (const e of fx) removeMesh(e.mesh); monsters = []; projectiles = []; loots = []; fx = []; clearFieldFx(); _spawnQueue.length = 0; _spawnCd = 0; target = null; moveTarget = null; boss = null; bossActive = false; _resetHudCache(); }
@@ -110,10 +111,18 @@ function enterWild(regionId, spawn) {
   setZoneVisuals(); themeWild(); setScale(); waveTimer = 0;
   if (r.town) markDiscovered(r.town);   // reaching a biome reveals its adjoining town on the map
   zoneTxt.textContent = r.name + ' · Lv ' + r.lvl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg(r.name); saveProgress(false);
+  wildObj = rollWildObjective(r.lvl);
+  if (wildObj.kind === 'stalker') { const c = spawnChampion(0); if (c) { c.name = 'The Stalker of ' + r.name; setTimeout(() => showMsg('Something hunts you through ' + r.name + '…'), 1200); } else wildObj = null; }
+  renderObjective();
   warmScene(r.name + ' · Lv ' + r.lvl);
 }
+function payWildBounty() {
+  let best = rollItem(curScale.ilvl + 2, null, 0.22); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.22); if (itemScore(c) > itemScore(best)) best = c; }
+  dropLoot(player.x + 2, player.z, 'item', best); dropLoot(player.x, player.z, 'gold', Math.round(rand(50, 110) + ((curRegion && curRegion.lvl) || 1) * 10));
+  gainXP(Math.round(player.xpNext * 0.12)); showMsg('Hunt complete!'); sfx('level'); _ev('bounty');
+}
 /* ---- shrines: individually-addressable, single-use buff altars, rebuilt each floor (outside the biome cache) ---- */
-const SHRINE_COL = { empowered: 0xff5040, fleet: 0x6affa0, blessed: 0xffd24d, cursed: 0xb060ff };
+const SHRINE_COL = { empowered: 0xff5040, fleet: 0x6affa0, blessed: 0xffd24d, cursed: 0xb060ff, stoneskin: 0xc8b89a, greed: 0xffaa2a };
 function buildShrineMesh(type) {
   const col = SHRINE_COL[type] || 0xffffff; const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.5, 0.5, 8), new THREE.MeshPhongMaterial({ specular: 0x111111, color: 0x33303a, flatShading: true })); base.position.y = 0.25; base.castShadow = true; g.add(base);
@@ -132,7 +141,7 @@ function placeShrines() {
     let x = 0, z = 0;
     if (pool && pool.length) { const rid = pool.splice(randi(0, pool.length - 1), 1)[0]; const p = layoutRoomPoint(lay, rid, 7); x = p.x; z = p.z; }
     else { let tries = 0; do { const ang = rand(0, 6.28), dd = rand(22, DUNG_HALF - 12); x = Math.cos(ang) * dd; z = Math.sin(ang) * dd; tries++; } while (tries < 12 && (Math.hypot(x, z) < 14 || Math.hypot(x - (d_deeperPortal ? d_deeperPortal.x : 0), z - (d_deeperPortal ? d_deeperPortal.z : -50)) < 12)); }
-    const type = (Math.random() < 0.25) ? 'cursed' : choice(['empowered', 'fleet', 'blessed']);
+    const type = (Math.random() < 0.22) ? 'cursed' : choice(['empowered', 'fleet', 'blessed', 'stoneskin', 'greed']);
     const mesh = buildShrineMesh(type); mesh.position.set(x, 0, z); shrineGroup.add(mesh);
     shrines.push({ x, z, type, used: false, mesh });
   }
@@ -164,11 +173,15 @@ function openChest() {
 }
 function activateShrine(s) {
   if (!s || s.used) return; s.used = true; _ev('shrine');
+  if (zone === 'dungeon' && floorObj && !floorObj.done && bountyProgress(floorObj, 'shrine')) payBounty();
+  renderObjective();
   const cr = s.mesh.userData.crystal; if (cr) { cr.material.color.setHex(0x555555); cr.material.emissive.setHex(0x222222); cr.material.emissiveIntensity = 0.05; }
   spawnExplosion(s.x, s.z, SHRINE_COL[s.type] || 0xffffff); sfx('level');
   if (s.type === 'empowered') { player.buffs.empUntil = now() + 30000; player.buffs.empMul = 1.25; floatText('Empowered!', player.x, player.z - 1, '#ff8a6a'); showMsg('Shrine of Power — +25% damage (30s)'); }
   else if (s.type === 'fleet') { player.buffs.fleetUntil = now() + 30000; player.buffs.fleetMul = 1.3; floatText('Fleet!', player.x, player.z - 1, '#6affa0'); showMsg('Shrine of Haste — +30% speed (30s)'); }
   else if (s.type === 'blessed') { const amt = Math.round(player.hpMax * 0.4); player.hp = Math.min(player.hpMax, player.hp + amt); if (player.statuses) player.statuses = player.statuses.filter(x => x.type !== 'burn' && x.type !== 'poison' && x.type !== 'bleed'); player.chillUntil = 0; updateGlobes(); floatText('+' + amt, player.x, player.z, '#ff6b5b'); showMsg('Blessed Shrine — restored & cleansed'); }
+  else if (s.type === 'stoneskin') { player.buffs.stoneUntil = now() + 30000; floatText('Stoneskin!', player.x, player.z - 1, '#c8b89a'); showMsg('Shrine of Stone — 30% less damage taken (30s)'); }
+  else if (s.type === 'greed') { const g = Math.round((rand(80, 160) + depth * 12) * (1 + (player.goldFind || 0))); player.gold += g; goldTxt.textContent = player.gold + ' g'; player.buffs.greedUntil = now() + 30000; floatText('+' + g + 'g', player.x, player.z, '#ffe27a'); sfx('gold'); showMsg('Shrine of Greed — gold rains, double gold (30s)'); }
   else { showMsg('Cursed Shrine — they come!'); spawnPack(); let best = rollItem(curScale.ilvl + 3, null, 0.3); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 3, null, 0.3); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(s.x, s.z, 'item', best); dropLoot(s.x + 1, s.z, 'gold', Math.round(rand(100, 200) + depth * 16)); }
 }
 /* ---- floor bounty payout + HUD ---- */
@@ -181,7 +194,8 @@ let _objTxt = null;
 function renderObjective() {
   if (!_objTxt) _objTxt = document.getElementById('objTxt'); if (!_objTxt) return;
   let s = '';
-  if (zone === 'dungeon' && floorObj && !floorObj.done) s = floorObj.kind === 'champion' ? 'Bounty — Slay the Champion' : ('Bounty — Slay foes ' + floorObj.count + '/' + floorObj.target);
+  if (zone === 'dungeon' && floorObj && !floorObj.done) s = floorObj.kind === 'champion' ? 'Bounty — Slay the Champion' : floorObj.kind === 'elites' ? ('Bounty — Slay elites ' + floorObj.count + '/' + floorObj.target) : floorObj.kind === 'shrines' ? ('Bounty — Commune with shrines ' + floorObj.count + '/' + floorObj.target) : ('Bounty — Slay foes ' + floorObj.count + '/' + floorObj.target);
+  else if (zone === 'wild' && wildObj && !wildObj.done) s = wildObj.kind === 'stalker' ? 'Hunt — Slay the Stalker' : ('Hunt — Cull the wilds ' + wildObj.count + '/' + wildObj.target);
   if (s !== _objTxt._s) { _objTxt._s = s; _objTxt.textContent = s; _objTxt.style.display = s ? 'block' : 'none'; }
 }
 function enterDungeon(d) {

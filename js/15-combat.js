@@ -137,7 +137,8 @@ function hitMonsterProj(m, dmg, kind) { const rm = monsterResistMult(m, kind); i
 function killMonster(m) {
   _ev(m.boss ? 'killBoss' : m.elite ? 'killElite' : 'kill');
   gainXP(m.xp); player.kills++; killsTxt.textContent = 'Slain: ' + player.kills;
-  if (zone === 'dungeon') { if (floorObj && !floorObj.done && bountyProgress(floorObj, m.champion ? 'champion' : 'kill')) payBounty(); renderObjective(); }
+  if (zone === 'dungeon') { if (floorObj && !floorObj.done) { let paid = bountyProgress(floorObj, m.champion ? 'champion' : 'kill'); if (!paid && m.elite && bountyProgress(floorObj, 'elite')) paid = true; if (paid) payBounty(); } renderObjective(); }
+  else if (zone === 'wild') { if (wildObj && !wildObj.done && bountyProgress(wildObj, m.champion ? 'champion' : 'kill')) payWildBounty(); renderObjective(); }
   sfx(m.boss ? 'bossdie' : 'death'); spawnSparks(m.x, m.z, 0xff7a3a, m.boss ? 8 : 7); impactFlash(m.x, m.z, m.boss ? 0xff5030 : 0xffb060);
   if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), [], 'a death explosion'); }
   if (m.boss) {
@@ -150,9 +151,14 @@ function killMonster(m) {
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 3, null, 0.30); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 3, null, 0.30); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(80, 160) + depth * 14)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-2, 2), m.z + rand(-2, 2), 'potion', 1); if (Math.random() < 0.5) dropLoot(m.x, m.z + 1, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 0 : 1 });
   } else if (m.treasure) {
-    spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The hoard spills open!'); _ev('goblin');
-    const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
-    dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
+    spawnExplosion(m.x, m.z, m.goblinKind === 'gems' ? 0x6ad8ff : 0xffd24d); showMsg('The hoard spills open!'); _ev('goblin');
+    if (m.goblinKind === 'gems') { // Gem Hoarder: a gem shower instead of gear/gold
+      const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.55 ? 1 : 2 }); }
+      dropLoot(m.x, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 2 : 3 }); dropLoot(m.x + 1, m.z, 'gold', Math.round(rand(60, 120) + depth * 8));
+    } else {
+      const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
+      dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
+    }
   } else if (m.elite) {
     for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onDeath) md.onDeath(m); }
     let best = rollItem(curScale.ilvl + 2, null, 0.18); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.18); if (itemScore(c) > itemScore(best)) best = c; }
@@ -179,7 +185,7 @@ function gainXP(n) {
 }
 function dropLoot(x, z, kind, payload) {
   _ev('loot:' + kind);
-  if (kind === 'gold') payload = Math.round(payload * (1 + (player.goldFind || 0))); // Gold Find % affix
+  if (kind === 'gold') payload = Math.round(payload * (1 + (player.goldFind || 0)) * (player.buffs.greedUntil > now() ? 2 : 1)); // Gold Find % affix · Shrine of Greed doubles
   const group = new THREE.Group(); group.position.set(x, 0, z); group.userData.noDispose = true; let icon, col, tier;
   if (kind === 'gold') { col = 0xffd24d; tier = 1; icon = new THREE.Mesh(_LGEO.gold, _lootMat('gold', col)); }
   else if (kind === 'potion') { col = 0xff5a4a; tier = 1; icon = new THREE.Mesh(_LGEO.pot, _lootMat('potion', col)); }

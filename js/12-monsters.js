@@ -185,11 +185,13 @@ function spawnGoblin() {
   let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
   if (!p) { const ang = rand(0, 6.28), d = rand(34, 55); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); }
   const m = spawnMonster('imp', null, { x: p.x, z: p.z }); if (!m) return null;
-  m.flee = true; m.treasure = true; m.showName = true; m.name = 'Treasure Goblin'; m.nameCol = 0xffd24d;
+  m.goblinKind = Math.random() < 0.3 ? 'gems' : 'gold'; // Gem Hoarder variant: rarer, hoards gems instead of gold
+  const gc = m.goblinKind === 'gems' ? 0x6ad8ff : 0xffd24d;
+  m.flee = true; m.treasure = true; m.showName = true; m.name = m.goblinKind === 'gems' ? 'Gem Hoarder' : 'Treasure Goblin'; m.nameCol = gc;
   m.dmg = 0; m.speed = 0.34; m.ttl = 18000; m.hp = m.hpMax = Math.round(30 + depth * 4); m.xp = Math.round(m.xp * 3);
-  if (m.mesh.userData.bodyMat) m.mesh.userData.bodyMat.color.setHex(0xffd24d);
-  // golden glow shell (additive, no PointLight -> no shader-recompile risk); userData.aura makes the monster loop pulse it
-  const glow = new THREE.Mesh(_mGeo('goblinGlow', () => new THREE.SphereGeometry(1.3, 12, 10)), _mMat('goblinGlow', () => new THREE.MeshBasicMaterial({ color: 0xffd24d, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false })));
+  if (m.mesh.userData.bodyMat) m.mesh.userData.bodyMat.color.setHex(gc);
+  // glow shell (additive, no PointLight -> no shader-recompile risk); userData.aura makes the monster loop pulse it
+  const glow = new THREE.Mesh(_mGeo('goblinGlow', () => new THREE.SphereGeometry(1.3, 12, 10)), _mMat('goblinGlow' + gc, () => new THREE.MeshBasicMaterial({ color: gc, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false })));
   glow.position.y = 1.0; m.mesh.add(glow); m.mesh.userData.aura = glow;
   sfx('gold'); showMsg('A Treasure Goblin scurries by!'); return m;
 }

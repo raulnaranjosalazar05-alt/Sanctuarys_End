@@ -19,12 +19,12 @@ function loadObjectives() {
   // so overriding it here would not affect the sandbox's rollFloorObjective().
   return runSnippet(
     sandbox,
-    ';(globalThis.__obj = { rollFloorObjective, bountyProgress, _orig: Math.random, setRandom(f){ Math.random = f; }, resetRandom(){ Math.random = this._orig; } });',
+    ';(globalThis.__obj = { rollFloorObjective, rollWildObjective, bountyProgress, _orig: Math.random, setRandom(f){ Math.random = f; }, resetRandom(){ Math.random = this._orig; } });',
   );
 }
 
 const obj = loadObjectives();
-const { rollFloorObjective, bountyProgress } = obj;
+const { rollFloorObjective, rollWildObjective, bountyProgress } = obj;
 
 // Run fn with the SANDBOX's Math.random pinned to `val`, restoring afterwards.
 function withRandom(val, fn) {
@@ -43,16 +43,19 @@ test('no bounty on boss floors or the opening floor', () => {
 });
 
 test('non-boss floors always produce a valid bounty', () => {
+  const KINDS = new Set(['slay', 'champion', 'elites', 'shrines']);
   for (const d of [2, 3, 4, 6, 7, 8, 9, 11, 23, 97]) {
     // all non-boss (avoid multiples of 5)
     for (let i = 0; i < 50; i++) {
       const o = rollFloorObjective(d);
-      assert.ok(o && (o.kind === 'slay' || o.kind === 'champion'), `depth ${d} bad bounty: ${JSON.stringify(o)}`);
+      assert.ok(o && KINDS.has(o.kind), `depth ${d} bad bounty: ${JSON.stringify(o)}`);
       assert.equal(o.done, false);
       if (o.kind === 'slay') {
         assert.equal(o.count, 0);
         assert.ok(o.target >= 6 && o.target <= 18, `slay target out of [6,18]: ${o.target}`);
       }
+      if (o.kind === 'elites') assert.ok(o.target >= 2 && o.target <= 3, `elites target out of [2,3]`);
+      if (o.kind === 'shrines') assert.equal(o.target, 2, 'shrine bounties always ask for 2 (floors spawn 2-3)');
     }
   }
 });
@@ -94,4 +97,36 @@ test('slay bounty ignores champion kills; champion bounty ignores normal kills',
 test('null / completed bounty is inert', () => {
   assert.equal(bountyProgress(null, 'kill'), false);
   assert.equal(bountyProgress({ kind: 'slay', target: 1, count: 5, done: true }, 'kill'), false);
+});
+
+test('elite and shrine bounties count only their own signal', () => {
+  const el = { kind: 'elites', target: 2, count: 0, done: false };
+  assert.equal(bountyProgress(el, 'kill'), false);
+  assert.equal(el.count, 0, 'plain kills must not advance an elites bounty');
+  assert.equal(bountyProgress(el, 'elite'), false);
+  assert.equal(bountyProgress(el, 'elite'), true);
+  assert.equal(bountyProgress(el, 'elite'), false, 'once');
+
+  const sh = { kind: 'shrines', target: 2, count: 0, done: false };
+  assert.equal(bountyProgress(sh, 'shrine'), false);
+  assert.equal(bountyProgress(sh, 'kill'), false);
+  assert.equal(sh.count, 1, 'kills must not advance a shrine bounty');
+  assert.equal(bountyProgress(sh, 'shrine'), true);
+});
+
+test('wild hunts: hunt counts kills, stalker completes on the champion', () => {
+  obj.setRandom(() => 0.1);
+  const hunt = rollWildObjective(3);
+  obj.resetRandom();
+  assert.equal(hunt.kind, 'hunt');
+  assert.ok(hunt.target >= 8 && hunt.target <= 14, `hunt target out of [8,14]: ${hunt.target}`);
+  for (let i = 0; i < hunt.target - 1; i++) assert.equal(bountyProgress(hunt, 'kill'), false);
+  assert.equal(bountyProgress(hunt, 'kill'), true, 'completes exactly at target');
+
+  obj.setRandom(() => 0.9);
+  const stalker = rollWildObjective(3);
+  obj.resetRandom();
+  assert.equal(stalker.kind, 'stalker');
+  assert.equal(bountyProgress(stalker, 'kill'), false, 'plain kills do not end the hunt');
+  assert.equal(bountyProgress(stalker, 'champion'), true, 'slaying the stalker does');
 });
