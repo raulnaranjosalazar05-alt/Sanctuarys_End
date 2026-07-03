@@ -72,13 +72,13 @@ const _explMatC = {}; function spawnExplosion(x, z, col) { const mat = _explMatC
    an energy-block visual. All are ticked by tickFieldFx() in update() and torn down by clearField(). */
 const hazards = [], telegraphs = [], tempWalls = [];
 function spawnTelegraph(x, z, r, ms, col, cb) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.55)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.22, z); m.scale.setScalar(r * 0.3); scene.add(m); telegraphs.push({ x, z, r, t: ms, t0: ms, mesh: m, cb }); }
-function spawnHazard(x, z, r, life, dps, col) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m }); }
+function spawnHazard(x, z, r, life, dps, col, src) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m, src: src || 'burning ground' }); }
 function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); tempWalls.push({ col, life, mesh: m }); }
 function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); return; } } }
 function tickFieldFx(dt) {
   for (const tg of telegraphs) { tg.t -= dt; const p = 1 - Math.max(0, tg.t / tg.t0); tg.mesh.scale.setScalar(tg.r * (0.3 + 0.7 * p) * 0.85); if (tg.t <= 0) { tg.dead = true; removeMesh(tg.mesh); if (tg.cb) tg.cb(); } }
   _compact(telegraphs, _deadFlag, null);
-  for (const h of hazards) { h.life -= dt; h.tk -= dt; if (h.tk <= 0 && Math.hypot(player.x - h.x, player.z - h.z) < h.r) { h.tk = 250; damagePlayer(h.dps * 0.25, null); } if (h.life <= 0) { h.dead = true; removeMesh(h.mesh); } }
+  for (const h of hazards) { h.life -= dt; h.tk -= dt; if (h.tk <= 0 && Math.hypot(player.x - h.x, player.z - h.z) < h.r) { h.tk = 250; damagePlayer(h.dps * 0.25, null, h.src); } if (h.life <= 0) { h.dead = true; removeMesh(h.mesh); } }
   _compact(hazards, _deadFlag, null);
   for (const w of tempWalls) { w.life -= dt; if (w.life <= 0) { w.dead = true; _dropWallCol(w.col); removeMesh(w.mesh); } }
   _compact(tempWalls, _deadFlag, null);
@@ -127,7 +127,7 @@ function tickStatuses(ent, dt, isPlayer) {
     else if (s.type === 'stun') ent.stunned = true;
   }
   if (dot > 0) {
-    if (isPlayer) { if (!_perfGod) player.hp -= dot; if (player.hp < 0) player.hp = 0; updateGlobes(); if (player.hp <= 0 && running && !_perfGod) { sfx('die'); gameOver(); } }
+    if (isPlayer) { if (!_perfGod) player.hp -= dot; if (player.hp < 0) player.hp = 0; updateGlobes(); if (player.hp <= 0 && running && !_perfGod) { const d0 = arr.find(s => s.type === 'burn' || s.type === 'bleed' || s.type === 'poison'); if (d0) player._lastHit = d0.type === 'burn' ? 'burning' : d0.type === 'bleed' ? 'bleeding' : 'poison'; sfx('die'); gameOver(); } }
     else { ent.hp -= dot; ent.flash = Math.max(ent.flash, 4); if (ent.dotAcc === undefined) ent.dotAcc = 0; ent.dotAcc += dot; if (ent.dotAcc >= 1) { floatText(Math.round(ent.dotAcc), ent.x, ent.z + 0.6, '#ff9a5b'); ent.dotAcc = 0; } if (ent.hp <= 0) { killMonster(ent); return; } }
   }
   ent.statuses = arr.filter(s => s.dur > 0);
@@ -139,9 +139,10 @@ function killMonster(m) {
   gainXP(m.xp); player.kills++; killsTxt.textContent = 'Slain: ' + player.kills;
   if (zone === 'dungeon') { if (floorObj && !floorObj.done && bountyProgress(floorObj, m.champion ? 'champion' : 'kill')) payBounty(); renderObjective(); }
   sfx(m.boss ? 'bossdie' : 'death'); spawnSparks(m.x, m.z, 0xff7a3a, m.boss ? 8 : 7); impactFlash(m.x, m.z, m.boss ? 0xff5030 : 0xffb060);
-  if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), []); }
+  if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), [], 'a death explosion'); }
   if (m.boss) {
     bossActive = false; boss = null; if (d_deeperPortal) d_deeperPortal.group.visible = true; spawnExplosion(m.x, m.z, 0xff3020); showMsg('The way down opens!');
+    if (m.role === 'boss_dragonevo' && difficulty === 'Inferno' && character && character.flags && !character.flags.sigil) { character.flags.sigil = true; showMsg('🔥 The Sigil of the Inferno is yours — Depth 666 answers the Waypoints.'); sfx('level'); saveProgress(true); } /* keyed Devil access: fell Pyraxis on Inferno */
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 4, null, 0.35); for (let k = 0; k < 3; k++) { const c = rollItem(curScale.ilvl + 4, null, 0.35); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(150, 300) + depth * 20)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'potion', 1); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'manapotion', 1);
   } else if (m.champion) {

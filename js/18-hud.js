@@ -127,6 +127,23 @@ function renderSkillbar() {
 }
 function renderSkillCd() { document.querySelectorAll('.cd').forEach(el => { const id = el.dataset.id; const def = SKILLDEFS[id]; const cd = skillCd(def, id); const rem = cd - (now() - (_cd[id] || -9999)); if (rem > 50) { el.style.display = 'flex'; const prog = clamp(1 - rem / cd, 0, 1) * 360; el.style.background = `conic-gradient(transparent ${prog}deg, rgba(0,0,0,.7) ${prog}deg)`; el.textContent = (rem / 1000).toFixed(1); } else el.style.display = 'none'; }); }
 function showMsg(t) { const m = document.getElementById('msg'); m.textContent = t; m.style.opacity = 1; clearTimeout(m._t); m._t = setTimeout(() => m.style.opacity = 0, 1400); }
+/* ---- buff/debuff timer chips (next to the potion indicator). Rebuilt on the 66ms UI cadence behind a
+   composed-string dirty check (renderObjective pattern) so idle frames cost one string compare. ---- */
+let _buffStr = null;
+function renderBuffChips() {
+  const el = document.getElementById('buffChips'); if (!el) return;
+  const t = now(); const parts = []; const B = player.buffs;
+  if (B.cryUntil > t) parts.push('📢 ' + Math.ceil((B.cryUntil - t) / 1000) + 's');
+  if (B.empUntil > t) parts.push('✨ ' + Math.ceil((B.empUntil - t) / 1000) + 's');
+  if (B.fleetUntil > t) parts.push('💨 ' + Math.ceil((B.fleetUntil - t) / 1000) + 's');
+  if (B.stoneUntil > t) parts.push('🪨 ' + Math.ceil((B.stoneUntil - t) / 1000) + 's');
+  if (B.greedUntil > t) parts.push('💰 ' + Math.ceil((B.greedUntil - t) / 1000) + 's');
+  if (B.frenzyUntil > t) parts.push('💢 ' + Math.ceil((B.frenzyUntil - t) / 1000) + 's');
+  if (player.chillUntil > t) parts.push('❄ ' + Math.ceil((player.chillUntil - t) / 1000) + 's');
+  if (player.statuses) { for (const s of player.statuses) { const ico = s.type === 'burn' ? '🔥' : s.type === 'bleed' ? '🩸' : s.type === 'poison' ? '☠' : s.type === 'stun' ? '💫' : null; if (ico) parts.push(ico + ' ' + Math.max(1, Math.ceil(s.dur / 1000)) + 's'); } }
+  const str = parts.join('|'); if (str === _buffStr) return; _buffStr = str;
+  el.innerHTML = parts.map(p => `<span style="background:rgba(20,14,8,.8);border:1px solid #4a3a28;border-radius:6px;padding:3px 8px;color:#e6d8a0;font-size:12px;text-shadow:0 0 4px #000">${p}</span>`).join('');
+}
 const floatLayer = document.createElement('div'); floatLayer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden;'; document.body.appendChild(floatLayer);
 /* Phase 1: pooled labels — was innerHTML='' + createElement per float/elite/remote every 33ms (full DOM
    teardown + element GC). Now a persistent pool of reused <div>s: overwrite text/cssText on existing nodes,

@@ -11,7 +11,7 @@ const MTYPES = {
   zombie: { hp: 30, dmg: 6, speed: 0.10, r: 1.4, col: 0x6a8a4a, xp: 8, scale: 1.1, name: 'Zombie', resist: { poison: 0.5, fire: 1.25 } }, fallen: { hp: 18, dmg: 5, speed: 0.19, r: 1.1, col: 0xb04a3a, xp: 6, scale: 0.8, name: 'Fallen', resist: { fire: 0.5, frost: 1.25 } },
   brute: {
     hp: 95, dmg: 14, speed: 0.09, r: 2.0, col: 0x7a6a8a, xp: 22, scale: 1.8, name: 'Brute', resist: { fire: 0.5, frost: 1.25 },
-    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 300); m.spCd -= fr; if (m.spCd <= 0 && d > 8 && d < 32) { m.spCd = 420; const tx = player.x, tz = player.z; m.slow = Math.max(m.slow, 40); spawnTelegraph(tx, tz, 2.8, 550, 0xff8a3a, () => { if (m.hp <= 0) return; const a = Math.atan2(tx - m.x, tz - m.z); m.x = tx - Math.sin(a) * 1.2; m.z = tz - Math.cos(a) * 1.2; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xc4a050); if (Math.hypot(player.x - m.x, player.z - m.z) < 3.4) { damagePlayer(m.dmg * 1.3, m.elite); applyStatus(player, 'stun', 500, 0); floatText('Stunned!', player.x, player.z - 1, '#ffcf6a'); } }); } }
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 300); m.spCd -= fr; if (m.spCd <= 0 && d > 8 && d < 32) { m.spCd = 420; const tx = player.x, tz = player.z; m.slow = Math.max(m.slow, 40); spawnTelegraph(tx, tz, 2.8, 550, 0xff8a3a, () => { if (m.hp <= 0) return; const a = Math.atan2(tx - m.x, tz - m.z); m.x = tx - Math.sin(a) * 1.2; m.z = tz - Math.cos(a) * 1.2; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xc4a050); if (Math.hypot(player.x - m.x, player.z - m.z) < 3.4) { damagePlayer(m.dmg * 1.3, m.elite, m.name + "'s charge"); applyStatus(player, 'stun', 500, 0); floatText('Stunned!', player.x, player.z - 1, '#ffcf6a'); } }); } }
   },
   shaman: {
     hp: 42, dmg: 10, speed: 0.13, r: 1.3, col: 0x3aa0a0, xp: 15, scale: 1.0, ranged: true, name: 'Shaman', resist: { frost: 0.5, lightning: 1.25 },
@@ -21,7 +21,7 @@ const MTYPES = {
   imp: { hp: 16, dmg: 7, speed: 0.22, r: 0.9, col: 0xd0402a, xp: 11, scale: 0.7, name: 'Imp', resist: { fire: 0.4, frost: 1.3 } },
   hellhound: {
     hp: 34, dmg: 12, speed: 0.24, r: 1.2, col: 0x6a1a14, xp: 18, scale: 0.95, name: 'Hellhound', resist: { fire: 0.4, frost: 1.25 },
-    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 260); m.spCd -= fr; if (m.spCd <= 0 && d > 7 && d < 26) { m.spCd = 360; const tx = player.x, tz = player.z; spawnTelegraph(tx, tz, 2.4, 450, 0xff3a20, () => { if (m.hp <= 0) return; m.x = tx; m.z = tz; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xff3a20); if (Math.hypot(player.x - m.x, player.z - m.z) < 2.8) damagePlayer(m.dmg * 1.15, m.elite); }); } }
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 260); m.spCd -= fr; if (m.spCd <= 0 && d > 7 && d < 26) { m.spCd = 360; const tx = player.x, tz = player.z; spawnTelegraph(tx, tz, 2.4, 450, 0xff3a20, () => { if (m.hp <= 0) return; m.x = tx; m.z = tz; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xff3a20); if (Math.hypot(player.x - m.x, player.z - m.z) < 2.8) damagePlayer(m.dmg * 1.15, m.elite, m.name + "'s pounce"); }); } }
   },
   wraith: {
     hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 },
@@ -39,11 +39,11 @@ const ELITE_MODS = {
   swift: { name: 'Swift', col: 0x6affa0, speed: 1.6 },
   mighty: { name: 'Mighty', col: 0xff5040, dmg: 1.6 },
   vile: { name: 'Vile', col: 0x8a5ac0, hp: 1.6 },
-  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', onDeath(m) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, ['fiery']); spawnExplosion(m.x, m.z, 0xff7a2a); } },
+  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', onDeath(m) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, ['fiery'], 'a fiery death burst'); spawnExplosion(m.x, m.z, 0xff7a2a); } },
   frozen: { name: 'Frozen', col: 0x6ad8ff, resist: 'frost', onHitPlayer() { player.chillUntil = now() + 1500; floatText('Chilled', player.x, player.z - 1, '#9ff'); } },
-  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', onAI(m, d, fr) { m.arcaneCd -= fr; if (m.arcaneCd <= 0 && d < 55) { m.arcaneCd = 90; const a = Math.atan2(player.x - m.x, player.z - m.z); const pm = makeOrb(m.x, 2, m.z, 0xc06aff, 0.5); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.5, vz: Math.cos(a) * 0.5, dmg: m.dmg, kind: 'enemy', life: 150, mesh: pm, mods: m.elite }); } } },
+  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', onAI(m, d, fr) { m.arcaneCd -= fr; if (m.arcaneCd <= 0 && d < 55) { m.arcaneCd = 90; const a = Math.atan2(player.x - m.x, player.z - m.z); const pm = makeOrb(m.x, 2, m.z, 0xc06aff, 0.5); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.5, vz: Math.cos(a) * 0.5, dmg: m.dmg, kind: 'enemy', life: 150, mesh: pm, mods: m.elite, src: m.name }); } } },
   toxic: { name: 'Toxic', col: 0x8fe07a, resist: 'poison' },
-  molten: { name: 'Molten', col: 0xff5020, resist: 'fire', onAI(m, d, fr) { if (m.moltCd == null) m.moltCd = 30; m.moltCd -= fr; if (m.moltCd <= 0) { m.moltCd = 42; spawnHazard(m.x, m.z, 2.6, 3500, m.dmg * 0.5, 0xff5020); } } },
+  molten: { name: 'Molten', col: 0xff5020, resist: 'fire', onAI(m, d, fr) { if (m.moltCd == null) m.moltCd = 30; m.moltCd -= fr; if (m.moltCd <= 0) { m.moltCd = 42; spawnHazard(m.x, m.z, 2.6, 3500, m.dmg * 0.5, 0xff5020, 'molten ground'); } } },
   waller: { name: 'Walling', col: 0xc08aff, onAI(m, d, fr) { if (m.wallCd == null) m.wallCd = randi(90, 200); m.wallCd -= fr; if (m.wallCd <= 0 && d > 8 && d < 40) { m.wallCd = 320; const a = Math.atan2(player.x - m.x, player.z - m.z); const px = player.x + Math.sin(a) * 6, pz = player.z + Math.cos(a) * 6, wa = a + Math.PI / 2; for (const off of [-1, 0, 1]) spawnWallSeg(px + Math.sin(wa) * off * 2.7, pz + Math.cos(wa) * off * 2.7, 4000); floatText('Walled!', player.x, player.z - 1, '#c08aff'); } } },
   vortex: { name: 'Vortex', col: 0x9f6aff, onAI(m, d, fr) { if (m.vortCd == null) m.vortCd = randi(120, 260); m.vortCd -= fr; if (m.vortCd <= 0 && d > 10 && d < 34) { m.vortCd = 440; const mx = m.x, mz = m.z; spawnTelegraph(player.x, player.z, 2.2, 700, 0x9f6aff, () => { const dd = Math.hypot(player.x - mx, player.z - mz); if (dd > 6) { const a2 = Math.atan2(mx - player.x, mz - player.z); player.x += Math.sin(a2) * dd * 0.6; player.z += Math.cos(a2) * dd * 0.6; clampToZone(); player.chillUntil = now() + 900; floatText('Vortex!', player.x, player.z, '#9f6aff'); } }); } } },
 };
@@ -222,7 +222,7 @@ function buildBoss(def) {
 }
 function spawnBoss(d) {
   const dm = DIFF[difficulty] || DIFF.Normal; const B = BOSS_SCALE; const hp = Math.round(B.hpBase * (1 + d * B.hpLin + Math.pow(d * B.hpQuad, 2)) * dm.hp); const cdMul = clamp(1 - d * 0.015, 0.5, 1); const def = pickBossDef(d); const mesh = buildBoss(def); mesh.position.set(0, 0, -30); scene.add(mesh); cullLights();
-  const b = Object.assign({ type: 'boss', x: 0, z: -30, hp, hpMax: hp, r: 4.2, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp), speed: 0.07, col: def.col, scale: 3, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: def.name + ' · Depth ' + d, phase: 1, variant: def.variant, abilities: def.abilities || null, shield: 0, shieldMul: 0.5 });
+  const b = Object.assign({ type: 'boss', x: 0, z: -30, hp, hpMax: hp, r: 4.2, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp), speed: 0.07, col: def.col, scale: 3, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: def.name + ' · Depth ' + d, role: def.role, phase: 1, variant: def.variant, abilities: def.abilities || null, shield: 0, shieldMul: 0.5 });
   monsters.push(b); boss = b; sfx('boss');
 }
 /* ---- depth-666 unique: the big devil + hell arena (reachable only by descending) ---- */
@@ -251,7 +251,7 @@ function spawnDevil(d) {
 }
 function bossVolley(m, arc, spd, chill) {
   const base = Math.atan2(player.x - m.x, player.z - m.z);
-  for (let k = -arc; k <= arc; k++) { const a = base + k * 0.22; const pm = makeOrb(m.x, 2.5, m.z, chill ? 0x6ad8ff : 0xff5020, 0.55); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * spd, vz: Math.cos(a) * spd, dmg: Math.round(m.dmg * 0.7), kind: 'enemy', life: 160, mesh: pm, chill: !!chill }); }
+  for (let k = -arc; k <= arc; k++) { const a = base + k * 0.22; const pm = makeOrb(m.x, 2.5, m.z, chill ? 0x6ad8ff : 0xff5020, 0.55); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * spd, vz: Math.cos(a) * spd, dmg: Math.round(m.dmg * 0.7), kind: 'enemy', life: 160, mesh: pm, chill: !!chill, src: (m.name || '').split(' · ')[0] }); }
 }
 /* ---- data-driven boss ability kits ----
    Every big hit telegraphs first (spawnTelegraph) so it can be dodged — the v49 same-frame slam is gone.
@@ -262,14 +262,14 @@ const BOSS_ABILITY = {
   volley: { use(m, ab) { bossVolley(m, (m.phase === 2 ? (ab.p2arc || (ab.arc || 2) + 1) : (ab.arc || 2)), ab.spd || 0.6, !!ab.chill); } },
   slam: {
     range: 26,
-    use(m, ab) { const tx = player.x, tz = player.z, r = ab.r || 6; spawnTelegraph(tx, tz, r, ab.wind || 900, 0xff5030, () => { if (m.hp <= 0) return; spawnExplosion(tx, tz, 0xff3020); if (Math.hypot(player.x - tx, player.z - tz) < r) damagePlayer(Math.round(m.dmg * (ab.mul || 1.3)), null); }); },
+    use(m, ab) { const tx = player.x, tz = player.z, r = ab.r || 6; spawnTelegraph(tx, tz, r, ab.wind || 900, 0xff5030, () => { if (m.hp <= 0) return; spawnExplosion(tx, tz, 0xff3020); if (Math.hypot(player.x - tx, player.z - tz) < r) damagePlayer(Math.round(m.dmg * (ab.mul || 1.3)), null, bossShort(m)); }); },
   },
   cone: {
     range: 34,
-    use(m, ab) { const mx = m.x, mz = m.z, base = Math.atan2(player.x - mx, player.z - mz), col = ab.col || 0xff5020, segs = ab.segs || 3; for (let i = 1; i <= segs; i++) spawnTelegraph(mx + Math.sin(base) * i * 6.5, mz + Math.cos(base) * i * 6.5, 2.6 + i * 0.5, ab.wind || 750, col, i === segs ? () => { if (m.hp <= 0) return; for (let j = 1; j <= segs; j++) spawnHazard(mx + Math.sin(base) * j * 6.5, mz + Math.cos(base) * j * 6.5, 2.6 + j * 0.5, ab.life || 2400, m.dmg * (ab.mul || 0.6), col); } : null); },
+    use(m, ab) { const mx = m.x, mz = m.z, base = Math.atan2(player.x - mx, player.z - mz), col = ab.col || 0xff5020, segs = ab.segs || 3; for (let i = 1; i <= segs; i++) spawnTelegraph(mx + Math.sin(base) * i * 6.5, mz + Math.cos(base) * i * 6.5, 2.6 + i * 0.5, ab.wind || 750, col, i === segs ? () => { if (m.hp <= 0) return; for (let j = 1; j <= segs; j++) spawnHazard(mx + Math.sin(base) * j * 6.5, mz + Math.cos(base) * j * 6.5, 2.6 + j * 0.5, ab.life || 2400, m.dmg * (ab.mul || 0.6), col, bossShort(m) + "'s breath"); } : null); },
   },
   ringwave: {
-    use(m, ab) { const mx = m.x, mz = m.z, col = ab.col || 0xff8a3a, waves = ab.waves || 3; for (let i = 1; i <= waves; i++) { const r = 5 + i * 5.5; spawnTelegraph(mx, mz, r, 300 + i * 320, col, () => { if (m.hp <= 0) return; spawnExplosion(mx, mz, col); const pd = Math.hypot(player.x - mx, player.z - mz); if (Math.abs(pd - r) < 2.4) damagePlayer(Math.round(m.dmg * (ab.mul || 0.9)), null); }); } },
+    use(m, ab) { const mx = m.x, mz = m.z, col = ab.col || 0xff8a3a, waves = ab.waves || 3; for (let i = 1; i <= waves; i++) { const r = 5 + i * 5.5; spawnTelegraph(mx, mz, r, 300 + i * 320, col, () => { if (m.hp <= 0) return; spawnExplosion(mx, mz, col); const pd = Math.hypot(player.x - mx, player.z - mz); if (Math.abs(pd - r) < 2.4) damagePlayer(Math.round(m.dmg * (ab.mul || 0.9)), null, bossShort(m)); }); } },
   },
   teleport: {
     range: 28,
@@ -288,11 +288,12 @@ const VARIANT_ABILITIES = {
   summoner: [{ kind: 'summon', cd: 420, p2cd: 300, types: ['fallen'], n: 2, p2n: 3, shield: 180, t0: 480 }, { kind: 'volley', cd: 130, p2cd: 80, arc: 2, p2arc: 3, t0: 120 }, { kind: 'slam', cd: 300, r: 5, mul: 1.3, t0: 300 }],
   devil: [{ kind: 'volley', cd: 72, p2cd: 44, arc: 3, p2arc: 4, spd: 0.62, t0: 90 }, { kind: 'volley', cd: 72, p2cd: 44, arc: 2, spd: 0.5, chill: true, t0: 90 }, { kind: 'slam', cd: 300, r: 8, mul: 1.4, t0: 240 }, { kind: 'teleport', cd: 240, dist: 22, col: 0xff5020, t0: 200 }, { kind: 'summon', cd: 380, p2cd: 260, types: ['imp', 'hellhound'], n: 3, p2n: 4, rad: 6, shield: 150, msg: 'The Devil calls its brood!', t0: 360 }],
 };
+const bossShort = m => (m.name || 'the boss').split(' · ')[0];
 function bossAI(m, dt, d, sp) {
   const fr = dt * 60 / 1000; /* see update(): decrement frame-count cooldowns by real elapsed 60ths so boss ability cadence is framerate-independent */
   if (m.shield > 0) m.shield -= fr;
   if (m.phase === 1 && m.hp < m.hpMax * 0.5) { m.phase = 2; m.speed *= 1.5; showMsg(m.name.split(' · ')[0] + ' enrages!'); }
-  if (d > m.r + player.r + 0.5) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 70; damagePlayer(m.dmg, null); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; if (m.hp <= 0) killMonster(m); } } }
+  if (d > m.r + player.r + 0.5) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 70; damagePlayer(m.dmg, null, bossShort(m)); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; if (m.hp <= 0) killMonster(m); } } }
   const cm = m.cdMul || 1;
   if (!m.abil) m.abil = (m.abilities || VARIANT_ABILITIES[m.variant] || VARIANT_ABILITIES.brute).map(ab => ({ ...ab, t: ab.t0 != null ? ab.t0 : ab.cd }));
   for (const ab of m.abil) {

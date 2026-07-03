@@ -18,7 +18,7 @@ function enterGame() {
   Audio2.init(); Audio2.muted = SAVE._data.settings.muted; applySettings(); document.getElementById('soundBtn').textContent = Audio2.muted ? '🔇' : '🔊'; if (!Audio2.muted) MUSIC.start();
   try { if (!localStorage.getItem('sanctuary_helpseen')) { openHelp(); localStorage.setItem('sanctuary_helpseen', '1'); } } catch (_) { }
 }
-function gameOver() { running = false; saveProgress(false); show('overScreen'); document.getElementById('overTitle').textContent = 'YOU DIED'; document.getElementById('overStats').textContent = `${character.name} — Level ${player.level} • Slain ${player.kills} • Deepest Depth ${character.maxDepth}`; setHud(false); startMenu(); }
+function gameOver() { running = false; saveProgress(false); show('overScreen'); document.getElementById('overTitle').textContent = 'YOU DIED'; const cause = player._lastHit ? `Slain by ${player._lastHit} • ` : ''; const where = zone === 'dungeon' ? `Depth ${depth}` : zone === 'wild' ? ((curRegion && curRegion.name) || 'the wilds') : 'town'; document.getElementById('overStats').textContent = `${character.name} — Level ${player.level} • ${cause}${where} • Slain ${player.kills} • Deepest Depth ${character.maxDepth}`; setHud(false); startMenu(); }
 
 function renderSlots() {
   const wrap = document.getElementById('slots'); wrap.innerHTML = '';

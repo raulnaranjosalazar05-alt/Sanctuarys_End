@@ -212,7 +212,7 @@ function travelTo(id, mode, depthArg) {
   if (wildById(id)) { enterWild(id); return; }                 // a specific biome (greenwilds/frostfen/ashlands)
   const a = AREAS.find(x => x.id === id); if (!a) return;
   if (a.kind === 'town') enterTown(a); else if (a.kind === 'wild') enterWild(REGIONS[0].id);   // legacy 'wilds' → Greenwilds
-  else if (a.kind === 'dungeon') { const max = Math.max(1, (character && character.maxDepth) || 1); const d = mode === 'depth' ? clamp(Math.round(depthArg || 1), 1, max) : (mode === 'deep' && character.maxDepth > 1 ? character.maxDepth : 1); enterDungeon(d); }
+  else if (a.kind === 'dungeon') { const max = Math.max(1, (character && character.maxDepth) || 1); const sigil666 = depthArg === 666 && character && character.flags && character.flags.sigil; /* the Sigil of the Inferno is the only bypass of the maxDepth clamp */ const d = mode === 'depth' ? (sigil666 ? 666 : clamp(Math.round(depthArg || 1), 1, max)) : (mode === 'deep' && character.maxDepth > 1 ? character.maxDepth : 1); enterDungeon(d); }
 }
 
 let last = now(), waveTimer = 0, running = false, saveTimer = 0, invOpen = false, skillOpen = false, vendorOpen = false, stashOpen = false, smithOpen = false, enchantOpen = false, gambleOpen = false, jewelerOpen = false, alchemistOpen = false;

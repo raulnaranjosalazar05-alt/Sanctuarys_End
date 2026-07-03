@@ -135,6 +135,8 @@ interface Item {
   h2?: boolean;
   /** Shield Block % (chance to take 60% damage; recompute caps the folded total at 30%). */
   block?: number;
+  /** Player lock flag (right-click): protected from selling and salvaging. */
+  lock?: boolean;
 }
 
 /** Equipped items by slot (null when empty). */
