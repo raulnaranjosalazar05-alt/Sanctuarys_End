@@ -12,7 +12,7 @@ function drawMinimap() {
     mctx.stroke();
   }
   // interactables
-  const colMap = { vendor: '#9f6aff', stash: '#ffd24d', smith: '#ff8a3a', wild: '#6affa0', town: '#9f6aff', cave: '#ff8a3a', deeper: '#c04aff', cauldron: '#55ffa0', towngate: '#ffd24d', waypoint: '#6ab0ff', wildnext: '#bcd0ff', wildprev: '#9ad86a', chest: '#ffd24d' };
+  const colMap = { vendor: '#9f6aff', stash: '#ffd24d', smith: '#ff8a3a', wild: '#6affa0', town: '#9f6aff', cave: '#ff8a3a', deeper: '#c04aff', cauldron: '#55ffa0', towngate: '#ffd24d', waypoint: '#6ab0ff', wildnext: '#bcd0ff', wildprev: '#9ad86a', chest: '#ffd24d', cowportal: '#ffd24d', cowexit: '#ffd24d' };
   for (const o of interactables()) { let col = colMap[o.kind] || '#fff'; if (o.kind === 'towngate') col = (character && character.discovered && character.discovered[o.area]) ? '#ffd24d' : '#777'; mmDot(o.x, o.z, col, o.kind === 'towngate' ? 4.5 : 3.5); }
   // loot
   for (const l of loots) mmDot(l.x, l.z, l.kind === 'item' ? '#' + RCOL[l.payload.rarity].toString(16).padStart(6, '0') : '#ffe27a', 2);
@@ -38,7 +38,7 @@ let _gHpPct = NaN, _gHpN = -1, _gHpMax = -1, _gMpPct = NaN, _gMpN = -1, _gMpMax 
 let _promptHtml = null, _bbShown = null, _bbName = '', _bbPct = -1;
 function _resetHudCache() { _gHpPct = NaN; _gHpN = -1; _gHpMax = -1; _gMpPct = NaN; _gMpN = -1; _gMpMax = -1; _gXpPct = NaN; _gHpP = -1; _gMpP = -1; _promptHtml = null; _bbShown = null; _bbName = ''; _bbPct = -1; }
 /* Phase 1: hoisted out of the per-frame prompt block (was a ~13-key object literal allocated every frame while near an interactable). Dynamic labels (deeper/towngate) computed inline. */
-const PROMPT_LABELS = { vendor: 'trade with the Merchant', stash: 'open your Stash', smith: 'upgrade gear at the Smith', enchanter: 'enchant gear at the Enchanter', gambler: 'gamble with the Gambler', jeweler: 'visit the Jeweler', premiumVendor: 'trade with the Exotic Merchant', wild: 'enter the Wilderness', town: 'return to Town', cave: 'descend into the Dungeon', waypoint: 'use the Waypoint (fast travel)', cauldron: 'refill Health & Mana potions', shrine: 'commune with the Shrine', chest: 'open the Treasure Chest' };
+const PROMPT_LABELS = { vendor: 'trade with the Merchant', stash: 'open your Stash', smith: 'upgrade gear at the Smith', enchanter: 'enchant gear at the Enchanter', gambler: 'gamble with the Gambler', jeweler: 'visit the Jeweler', premiumVendor: 'trade with the Exotic Merchant', wild: 'enter the Wilderness', town: 'return to Town', cave: 'descend into the Dungeon', waypoint: 'use the Waypoint (fast travel)', cauldron: 'refill Health & Mana potions', shrine: 'commune with the Shrine', chest: 'open the Treasure Chest', cowportal: 'disturb the strange bovine idol', cowexit: 'return to Aldermere' };
 function updateGlobes() {
   const hpPct = player.hp / player.hpMax * 100; if (hpPct !== _gHpPct) { _gHpPct = hpPct; healthFill.style.height = hpPct + '%'; }
   const hpN = Math.round(player.hp); if (hpN !== _gHpN || player.hpMax !== _gHpMax) { _gHpN = hpN; _gHpMax = player.hpMax; hpTxt.textContent = hpN + '/' + player.hpMax; }

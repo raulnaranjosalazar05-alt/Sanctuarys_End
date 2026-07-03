@@ -78,7 +78,7 @@ function update(dt) {
   for (const c of waypointMarks) { c.rotation.y += 0.03; c.position.y = 5.4 + Math.sin(T * 0.003) * 0.18; }
   if (zone === 'wild') { wpTown.ring.rotation.z += 0.02; wpCave.ring.rotation.z += 0.02; if (wpNext.group.visible) wpNext.ring.rotation.z += 0.02; if (wpPrev.group.visible) wpPrev.ring.rotation.z += 0.02; }
   else if (zone === 'town') { t_wildPortal.ring.rotation.z += 0.02; for (const n of npcs) { n.group.userData.marker.rotation.y += 0.04; n.group.userData.marker.position.y = 4.6 + Math.sin(T * 0.004) * 0.2; if (n.group.userData.npcEnt) n.group.userData.npcEnt.userData.mixer.update(dt * 0.001); } for (const v of townVillagers) { if (v.userData.mixer) v.userData.mixer.update(dt * 0.001); } if (t_cauldron) { t_cauldron.marker.rotation.y += 0.05; t_cauldron.marker.position.y = 3.4 + Math.sin(T * 0.004) * 0.22; t_cauldron.brew.position.y = 2.02 + Math.sin(T * 0.008) * 0.05; } }
-  else if (d_deeperPortal) { d_deeperPortal.ring.rotation.z += 0.02; }
+  else if (d_deeperPortal) { d_deeperPortal.ring.rotation.z += 0.02; if (d_cowExit && d_cowExit.group.visible) d_cowExit.ring.rotation.z += 0.02; }
   torch.position.set(player.x, 9, player.z); playerGlow.position.set(player.x, 14, player.z); updateAmbient(dt); if (typeof NET !== 'undefined') NET.tick(dt);
 
   if (isCombat() && !bossActive) { waveTimer -= dt; if (_spawnQueue.length === 0 && monsters.length < MOB_CAP && (waveTimer <= 0 || monsters.length < 3)) { spawnWave(); waveTimer = 4200; } drainSpawns(dt); }
