@@ -40,8 +40,25 @@ const MUSIC = {
   start() { if (this.timer || Audio2.muted || !Audio2.ctx || !SAVE._data.settings.music) return; this.timer = setInterval(() => { if (Audio2.muted || !Audio2.ctx) return; const f = choice(this.scale) * (Math.random() < 0.3 ? 0.5 : 1); const o = Audio2.ctx.createOscillator(), g = Audio2.ctx.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.value = 0; g.gain.linearRampToValueAtTime(0.045, Audio2.ctx.currentTime + 0.6); g.gain.linearRampToValueAtTime(0.001, Audio2.ctx.currentTime + 2.6); o.connect(g); g.connect(Audio2.master); o.start(); o.stop(Audio2.ctx.currentTime + 2.7); }, 1900); },
   stop() { if (this.timer) { clearInterval(this.timer); this.timer = null; } }
 };
-const DIFF = { Normal: { hp: 1, dmg: 1, xp: 1 }, Hard: { hp: 1.6, dmg: 1.4, xp: 1.3 }, Hell: { hp: 2.6, dmg: 2, xp: 1.8 }, Inferno: { hp: 4, dmg: 3, xp: 2.5 } };
+/* Difficulty tiers change mechanics, not just multipliers: eliteAffixes = minimum affix count on elite packs,
+   density = spawn-wave size multiplier, resistBonus = extra monster resist deepening, reqDepth = the dungeon
+   depth a hero must reach before the tier unlocks (0 = always available). */
+const DIFF = {
+  Normal: { hp: 1, dmg: 1, xp: 1, eliteAffixes: 1, density: 1.0, resistBonus: 0, reqDepth: 0 },
+  Hard: { hp: 1.6, dmg: 1.4, xp: 1.3, eliteAffixes: 1, density: 1.15, resistBonus: 0.05, reqDepth: 8 },
+  Hell: { hp: 2.6, dmg: 2, xp: 1.8, eliteAffixes: 2, density: 1.3, resistBonus: 0.10, reqDepth: 20 },
+  Inferno: { hp: 4, dmg: 3, xp: 2.5, eliteAffixes: 3, density: 1.5, resistBonus: 0.15, reqDepth: 35 },
+};
 const DIFF_ORDER = ['Normal', 'Hard', 'Hell', 'Inferno'];
+/* A tier is earned, not toggled: unlocked once the LIVE hero has reached its reqDepth (in-game), or once any
+   saved hero has (main menu, where no character is loaded yet). */
+function diffUnlocked(name) {
+  const req = (DIFF[name] && DIFF[name].reqDepth) || 0; if (!req) return true;
+  let best = 0;
+  if (typeof character !== 'undefined' && character) best = character.maxDepth || 0;
+  else if (typeof SAVE !== 'undefined' && SAVE._data) { for (const s of SAVE._data.slots) { if (s && (s.maxDepth || 0) > best) best = s.maxDepth || 0; } }
+  return best >= req;
+}
 // endgame depth scaling (data-driven; early floors stay ~linear, late floors ramp up via the quadratic terms)
 const DSCALE = { hpLin: 0.4, hpQuad: 0.05, dmgLin: 0.28, dmgQuad: 0.04, xpLin: 0.5, xpQuad: 0.04, ilvlPerDepth: 2 };
 const BOSS_SCALE = { hpBase: 380, hpLin: 0.5, hpQuad: 0.05, dmgBase: 14, dmgLin: 0.3, dmgQuad: 0.03, xpBase: 300, xpLin: 0.6 };

@@ -17,7 +17,7 @@ function loadMonsters() {
   loadFiles(sandbox, ['js/12-monsters.js']);
   return runSnippet(
     sandbox,
-    ';(globalThis.__mon={MTYPES,ELITE_MODS,deepenResist,monsterResistMult,normElem,BOSS_DEFS,pickBossDef,BOSS_ABILITY,VARIANT_ABILITIES});',
+    ';(globalThis.__mon={MTYPES,ELITE_MODS,deepenResist,monsterResistMult,normElem,BOSS_DEFS,pickBossDef,BOSS_ABILITY,VARIANT_ABILITIES,DIFF,DIFF_ORDER,diffUnlocked,setDifficulty:(d)=>{difficulty=d;},setChar:(c)=>{character=c;}});',
   );
 }
 
@@ -92,6 +92,37 @@ test('every boss ability kind resolves against BOSS_ABILITY (defs and variant de
       }
     }
   }
+});
+
+test('difficulty tiers carry real mechanics and gate behind reached depth', () => {
+  for (const d of M.DIFF_ORDER) {
+    const t = M.DIFF[d];
+    assert.ok(t.hp >= 1 && t.dmg >= 1 && t.xp >= 1, `${d} multipliers malformed`);
+    assert.ok(
+      t.eliteAffixes >= 1 && t.density >= 1 && t.resistBonus >= 0 && t.reqDepth >= 0,
+      `${d} mechanics fields malformed`,
+    );
+  }
+  assert.ok(M.DIFF.Inferno.eliteAffixes > M.DIFF.Normal.eliteAffixes, 'Inferno packs roll more affixes');
+  assert.ok(M.DIFF.Inferno.density > M.DIFF.Hard.density, 'density ramps by tier');
+  // gating reads the live hero when one is loaded
+  M.setChar({ maxDepth: 0 });
+  assert.equal(M.diffUnlocked('Normal'), true, 'Normal is always open');
+  assert.equal(M.diffUnlocked('Inferno'), false, 'a fresh hero cannot toggle Inferno');
+  M.setChar({ maxDepth: 35 });
+  assert.equal(M.diffUnlocked('Inferno'), true, 'Depth 35 earns Inferno');
+  M.setChar(null); // menu: falls back to the deepest saved hero (empty store → locked)
+  assert.equal(M.diffUnlocked('Hard'), false, 'no saved heroes → higher tiers stay locked');
+});
+
+test('deepenResist scales with the difficulty tier', () => {
+  M.setChar({ maxDepth: 99 });
+  M.setDifficulty('Normal');
+  const n = M.deepenResist({ fire: 0.5 }, 5, false).fire;
+  M.setDifficulty('Inferno');
+  const inf = M.deepenResist({ fire: 0.5 }, 5, false).fire;
+  assert.ok(inf < n, `Inferno should deepen resists further (Normal ${n} vs Inferno ${inf})`);
+  M.setDifficulty('Normal');
 });
 
 test('monsterResistMult handles legacy strings, maps, aliases and shields', () => {

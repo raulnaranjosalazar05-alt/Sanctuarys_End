@@ -3,6 +3,10 @@ function setHud(on) { document.getElementById('hud').style.display = on ? 'block
 function enterGame() {
   invalidateRunes(); /* rune struct cache is keyed on the live `character`; clear it on every character switch so a newly loaded hero can't inherit the previous one's cached rune bonuses */
   stopMenu(); Object.assign(player, { level: character.level, xp: character.xp, xpNext: character.xpNext, gold: character.gold, kills: character.kills, potions: character.hpPotions, hpPotions: character.hpPotions, mpPotions: character.mpPotions, attackCd: 0, bob: 0 });
+  if (!diffUnlocked(difficulty)) { /* difficulty is a global setting — a fresh hero must not inherit an unearned tier */
+    let i = DIFF_ORDER.indexOf(difficulty); while (i > 0 && !diffUnlocked(DIFF_ORDER[i])) i--;
+    difficulty = DIFF_ORDER[Math.max(0, i)]; SAVE._data.settings.difficulty = difficulty; SAVE.persist(); document.getElementById('diffBtn').textContent = difficulty; showMsg('Difficulty set to ' + difficulty + ' — descend deeper to unlock more');
+  }
   recompute(); syncActives(); player.hp = player.hpMax; player.mp = player.mpMax;
   charName.textContent = character.name; setLevelText(player.level); killsTxt.textContent = 'Slain: ' + player.kills; goldTxt.textContent = player.gold + ' g';
   hero.userData.cloak.material.color.setHex((CLASSES[character.class] || CLASSES.warrior).col);
@@ -39,7 +43,12 @@ document.getElementById('skillBtn').onclick = () => toggleSkill(); document.getE
 document.querySelectorAll('#skillTabs .tab').forEach(t => t.onclick = () => setSkillTab(t.dataset.sktab));
 document.getElementById('vendorClose').onclick = () => closeAll(); document.getElementById('stashClose').onclick = () => closeAll(); document.getElementById('smithClose').onclick = () => closeAll(); document.getElementById('enchantClose').onclick = () => closeAll(); document.getElementById('gambleClose').onclick = () => closeAll(); document.getElementById('jewelerClose').onclick = () => closeAll(); document.getElementById('alchemistClose').onclick = () => closeAll();
 document.getElementById('townBtn').onclick = () => { if (zone !== 'town') enterTown(); };
-document.getElementById('diffBtn').onclick = () => { const order = DIFF_ORDER; difficulty = order[(order.indexOf(difficulty) + 1) % order.length]; SAVE._data.settings.difficulty = difficulty; SAVE.persist(); document.getElementById('diffBtn').textContent = difficulty; setScale(); showMsg('Difficulty: ' + difficulty); };
+document.getElementById('diffBtn').onclick = () => {
+  const order = DIFF_ORDER; let i = order.indexOf(difficulty);
+  for (let k = 0; k < order.length; k++) { i = (i + 1) % order.length; if (diffUnlocked(order[i])) break; } // cycle to the next EARNED tier
+  if (order[i] === difficulty) { showMsg('Descend deeper to unlock harder difficulties'); return; }
+  difficulty = order[i]; SAVE._data.settings.difficulty = difficulty; SAVE.persist(); document.getElementById('diffBtn').textContent = difficulty; setScale(); showMsg('Difficulty: ' + difficulty);
+};
 function toggleSound() { Audio2.init(); Audio2.muted = !Audio2.muted; SAVE._data.settings.muted = Audio2.muted; SAVE.persist(); document.getElementById('soundBtn').textContent = Audio2.muted ? '🔇' : '🔊'; if (Audio2.muted) MUSIC.stop(); else MUSIC.start(); }
 document.getElementById('soundBtn').onclick = toggleSound;
 const helpModal = document.getElementById('helpModal');

@@ -62,7 +62,8 @@ function monsterResistMult(m, kind) {
 // floored so depth can never reach 0 (no accidental immunity); vulnerabilities (>1) left as-is.
 function deepenResist(r, depth, elite) {
   if (!r || typeof r === 'string') return r; const out = { ...r };
-  const bonus = Math.min(0.18, (depth || 0) * 0.02) + (elite ? 0.06 : 0);
+  const tier = (typeof difficulty !== 'undefined' && DIFF[difficulty] && DIFF[difficulty].resistBonus) || 0;
+  const bonus = Math.min(0.18, (depth || 0) * 0.02) + (elite ? 0.06 : 0) + tier;
   for (const k in out) { if (out[k] < 1) out[k] = Math.max(0.25, out[k] - bonus); }
   return out;
 }
@@ -160,7 +161,7 @@ function spawnMonster(t, eliteMods, pos) {
 function spawnPack() {
   const t = choice(biomePool()); const ang = rand(0, 6.28), d = rand(45, 65);
   const c = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(c); const cx = c.x, cz = c.z;
-  const cnt = depth > 3 ? 2 : 1; const p2 = Object.keys(ELITE_MODS); const mods = []; for (let i = 0; i < cnt; i++) mods.push(p2.splice(randi(0, p2.length - 1), 1)[0]);
+  const dmf = DIFF[difficulty] || DIFF.Normal; const cnt = Math.max(depth > 3 ? 2 : 1, dmf.eliteAffixes || 1); const p2 = Object.keys(ELITE_MODS); const mods = []; for (let i = 0; i < cnt; i++) mods.push(p2.splice(randi(0, p2.length - 1), 1)[0]);
   spawnMonster(t, mods, { x: cx, z: cz });
   for (let i = 0; i < 3; i++) { const a = rand(0, 6.28); const mp = { x: cx + Math.cos(a) * 5, z: cz + Math.sin(a) * 5 }; clampEntToZone(mp); spawnMonster(t, null, { x: mp.x, z: mp.z }); }
   cullLights(); showMsg('An elite pack appears!');
@@ -311,7 +312,7 @@ const MOB_CAP = 30; /* ponytail: flat concurrent-monster ceiling. Normal play (k
 function spawnWave() {
   const eliteChance = zone === 'dungeon' ? 0.10 + depth * 0.02 : 0.04; if (Math.random() < eliteChance) _spawnQueue.push({ pack: true });
   if (zone === 'dungeon' && Math.random() < 0.03) _spawnQueue.push({ goblin: true }); // rare treasure goblin
-  const extra = zone === 'dungeon' ? 1 : 0; const pool = biomePool(); for (let i = 0; i < rand(2, 5) + extra; i++) _spawnQueue.push({ type: choice(pool) });
+  const extra = zone === 'dungeon' ? 1 : 0; const dens = (DIFF[difficulty] || DIFF.Normal).density || 1; const pool = biomePool(); const n = Math.round((rand(2, 5) + extra) * dens); for (let i = 0; i < n; i++) _spawnQueue.push({ type: choice(pool) });
 }
 // Amortize first-render: release one queued spawn per cadence so each frame compiles at most one new GPU
 // pipeline variant. Turns the cold-encounter compile burst (a single ~2s frozen frame) into a few small
