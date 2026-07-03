@@ -9,9 +9,9 @@
 // keep them in sync when those shapes change.
 
 // --- enumerations (mirror the const literals / key sets in game.js) ----------------------------------
-type Slot = 'weapon' | 'helm' | 'armor' | 'gloves' | 'boots' | 'ring' | 'amulet';
+type Slot = 'weapon' | 'offhand' | 'helm' | 'armor' | 'gloves' | 'boots' | 'ring' | 'amulet';
 type Rarity = 'common' | 'magic' | 'rare' | 'set' | 'unique';
-type ClassId = 'warrior' | 'mage' | 'rogue';
+type ClassId = 'warrior' | 'mage' | 'rogue' | 'barbarian';
 type Difficulty = 'Normal' | 'Hard' | 'Hell' | 'Inferno';
 
 /** Keys of the AFFIXES table (game.js). */
@@ -92,9 +92,17 @@ interface Effects {
   dodge?: number;
   flatDR?: number;
   lifeOnHit?: number;
+  /** Shield Block chance (0..0.3): on success incoming damage is multiplied by 0.6. */
+  block?: number;
 }
 
 // --- items -------------------------------------------------------------------------------------------
+/** A gem: `t` is the gem type key (into GEMS), `q` is the quality tier index (0..4). */
+interface Gem {
+  t: string;
+  q: number;
+}
+
 interface Item {
   id: number;
   slot: Slot;
@@ -119,6 +127,16 @@ interface Item {
   set?: string;
   /** Enchant added at the enchanter. */
   enchant?: { key: string; val: number };
+  /** Socket slots (rolled by rollSockets); each holds a Gem or null when empty. */
+  sockets?: (Gem | null)[];
+  /** Offhand kind identity ('shield' | 'tome' | 'quiver'); set by applyOffhandKind on offhand rolls. */
+  ohKind?: string;
+  /** Two-handed weapon (rolled flag; never derived from the base name). Locks the offhand slot. */
+  h2?: boolean;
+  /** Shield Block % (chance to take 60% damage; recompute caps the folded total at 30%). */
+  block?: number;
+  /** Player lock flag (right-click): protected from selling and salvaging. */
+  lock?: boolean;
 }
 
 /** Equipped items by slot (null when empty). */
@@ -198,6 +216,10 @@ interface Character {
   stats: Stats;
   statPoints: number;
   skillPoints: number;
+  /** Crafting Dust (salvage currency). */
+  materials: number;
+  /** Gem pouch: "type:quality" key -> count. */
+  gems: Record<string, number>;
   inventory: Item[];
   stash: Item[];
   equipment: Equipment;
@@ -205,6 +227,16 @@ interface Character {
   skills: Record<string, number>;
   /** Allocated passive-tree node ids. */
   passives: string[];
+  /** Action-bar assignment: 6 slots (slot 0 is always the basic attack), null when empty. */
+  loadout: (string | null)[];
+  /** Skill id -> (rune node id -> allocated ranks). */
+  skillRunes: Record<string, Record<string, number>>;
+  /** Unspent rune/ability points (+1 per level from L2). */
+  abilityPoints: number;
+  /** V8: persistent progress flags (e.g. `sigil` — the Depth 666 unlock). */
+  flags: Record<string, boolean>;
+  /** V8: achievement journal — `u` = unlocked (id -> 1), `n` = event counters (event -> count). */
+  ach: { u: Record<string, number>; n: Record<string, number> };
 }
 
 /** Global game settings (SAVE._data.settings). */

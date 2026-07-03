@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sanctuary's End — 3D</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="vendor/fonts/cinzel/cinzel.css" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   :root{--bg:#1a130c;--panel:#0d0905;--border:#3a2e22;--border-lit:#6a4a28;--gold:#e6b84d;--gold-bright:#ffe27a;--text:#d8c4a0;--muted:#8a7a5a;--accent:#3a2418;--accent-hover:#4a3020;}
@@ -125,7 +123,7 @@
   .panel h3,.modal h3{color:#e6b84d;font-size:20px;margin-bottom:10px;border-bottom:1px solid #3a2e22;padding-bottom:8px;}
   .close{position:absolute;top:14px;right:16px;cursor:pointer;color:#8a7a5a;font-size:20px;}.close:hover{color:#e6b84d;}
   /* Diablo-style paper doll: helm/chest/boots down the center, weapon+gloves left, amulet+ring right */
-  .equipGrid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-areas:"weapon helm amulet" "gloves armor ring" ". boots .";gap:10px;max-width:330px;margin:0 auto 14px;}
+  .equipGrid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-areas:"weapon helm amulet" "gloves armor ring" "offhand boots .";gap:10px;max-width:330px;margin:0 auto 14px;}
   .charStats{background:rgba(0,0,0,.3);border:1px solid #2a2218;border-radius:6px;padding:10px;margin-bottom:14px;font-size:12px;line-height:1.5;}
   .charStats b{color:#e6b84d;}
   .statline{display:flex;align-items:center;gap:6px;}
@@ -356,6 +354,7 @@
   <div class="globe" id="healthGlobe"><div class="fill" id="healthFill"></div><span id="hpTxt">100/100</span></div>
   <div class="globe" id="manaGlobe"><div class="fill" id="manaFill"></div><span id="mpTxt">50/50</span></div>
   <div id="potionInd">🧪 <b id="potCount">4</b> 🔵 <b id="potCountM" style="color:#5a9bff">2</b> <span id="potKeys">Space / Q</span></div>
+  <div id="buffChips" style="position:absolute;bottom:56px;left:148px;display:flex;gap:6px;pointer-events:none;z-index:5"></div>
   <div id="actionBar">
     <div id="xpStrip"><div id="xpbar"><div id="xpfill"></div></div></div>
     <div id="barRow">
@@ -387,10 +386,15 @@
   <div class="tabs" id="skillTabs">
     <div class="tab on" data-sktab="abilities">Abilities</div>
     <div class="tab" data-sktab="forest">Passive Forest</div>
+    <div class="tab" data-sktab="journal">Journal</div>
   </div>
   <div class="skPane" data-skpane="abilities">
     <div class="ptsNote" id="abilNote">Assign skills to your action bar, then spend ability points on their rune trees.</div>
     <div id="abilTree"></div>
+  </div>
+  <div class="skPane" data-skpane="journal" style="display:none">
+    <div class="ptsNote" id="journalNote">Deeds are chronicled as you play — each unlock pays gold or ✦ Dust.</div>
+    <div id="journalBody" style="max-height:62vh;overflow-y:auto;max-width:720px;margin:0 auto"></div>
   </div>
   <div class="skPane" data-skpane="forest" style="display:none">
     <div class="ptsNote" id="skillPtsNote">0 skill points</div>
@@ -446,7 +450,7 @@
   <h3>📦 Stash</h3><span class="close" id="stashClose">✕</span>
   <div class="stashCols">
     <div><div class="ptsNote">Backpack</div><div class="stashGrid" id="bpGrid"></div></div>
-    <div><div class="ptsNote">Stash</div><div class="stashGrid" id="stGrid"></div></div>
+    <div><div class="ptsNote" id="stashNote">Stash</div><div class="tabs" id="stashTabs" style="margin-bottom:6px"></div><div class="stashGrid" id="stGrid"></div></div>
   </div>
   <div id="slotBuyBar" style="display:flex;gap:10px;margin:12px 0 4px;"></div>
   <div class="invHint">Click an item to move it between backpack and stash. Stash stays safe in town. Buy more slots with gold.</div>
@@ -582,23 +586,17 @@
 <!-- three.js r184 loaded as ES modules via import map (Phase 1b: WebGPURenderer + TSL post-FX). -->
 <!-- Launch over http://localhost (a local static server) - module scripts cannot load over file://; WebGPU also needs a secure context (localhost qualifies, LAN http://192.168.x.x does not -> WebGL2 fallback). -->
 <!-- R5: bare "three" is remapped to the three.webgpu.js build (matching the official webgpu_postprocessing_bloom example) so GLTFLoader/SkeletonUtils/PMREMGenerator bind to the SAME module graph as the renderer/scene. -->
-<!-- Integrity: the two core builds are pinned to a Subresource-Integrity hash via the import-map "integrity"
-     key (HTML spec; honored by Chromium 127+, the WebGPU audience — silently ignored by older/other browsers,
-     so it never breaks loading). The exact version (three@0.184.0) is already immutable on npm/unpkg; the hash
-     adds tamper/corruption protection on top. (Addons under three/addons/ are a path prefix and can't be hashed
-     per-file here; for full offline/availability resilience the next step would be to self-host the build.)
-     To regenerate after a version bump: openssl dgst -sha384 -binary <file> | openssl base64 -A -->
+<!-- SELF-HOSTED (v50): three@0.184.0 is vendored under vendor/three-0.184.0/ (the two builds + the transitive
+     import closure of the 7 addons the shim imports — see vendor/three-0.184.0/README.md). No CDN at runtime:
+     the game loads fully offline/same-origin, immune to unpkg outages and network blocks. The former SRI
+     integrity block is retired — same-origin static files are covered by the page's own transport. -->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.184.0/build/three.webgpu.js",
-    "three/webgpu": "https://unpkg.com/three@0.184.0/build/three.webgpu.js",
-    "three/tsl": "https://unpkg.com/three@0.184.0/build/three.tsl.js",
-    "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
-  },
-  "integrity": {
-    "https://unpkg.com/three@0.184.0/build/three.webgpu.js": "sha384-vatRh9vQy/B/ECoJSF7P/Jg9rF6KVuG/ovU+3Wp/BUaCcpR0DM+a4zCEbQ8Y/RFK",
-    "https://unpkg.com/three@0.184.0/build/three.tsl.js": "sha384-dqftyqccaI6qYFdGtJtugSSe4YKncDgGHttpZJr+lR/vSq18VR5ubqlzEHdGLdJ1"
+    "three": "vendor/three-0.184.0/build/three.webgpu.js",
+    "three/webgpu": "vendor/three-0.184.0/build/three.webgpu.js",
+    "three/tsl": "vendor/three-0.184.0/build/three.tsl.js",
+    "three/addons/": "vendor/three-0.184.0/examples/jsm/"
   }
 }
 </script>
@@ -631,8 +629,38 @@
   // in linear, and renderer.outputColorSpace=SRGBColorSpace (game.js) re-encodes on output. Retires Path A.
   window.THREE.ColorManagement.enabled = true;
 </script>
-<!-- game.js stays a CLASSIC defer script: it relies on top-level globals + inline on*= handlers. -->
-<!-- defer + module scripts share the deferred queue and run in document order: shim first, then game.js with THREE present. -->
-<script defer src="game.js"></script>
+<!-- The game is a set of CLASSIC defer scripts that share one global scope (top-level consts/lets/functions
+     are cross-file globals; there are no inline on*= handlers — all onclick are DOM property assignments).
+     ORDER IS LOAD-BEARING: the numeric filename prefix is the execution order, which equals the original
+     game.js line order; tests/load-order.test.js pins this list to the js/ directory so it can't drift.
+     defer + module scripts share the deferred queue and run in document order: the shim above runs first,
+     then these with window.THREE / window.TSL already present. No build step — GitHub Pages serves them as-is. -->
+<script defer src="js/00-core.js"></script>
+<script defer src="js/01-items.js"></script>
+<script defer src="js/02-skills.js"></script>
+<script defer src="js/03-save.js"></script>
+<script defer src="js/04-render.js"></script>
+<script defer src="js/05-worldmap.js"></script>
+<script defer src="js/06-textures.js"></script>
+<script defer src="js/07-wild.js"></script>
+<script defer src="js/08-town.js"></script>
+<script defer src="js/09-dungeon.js"></script>
+<script defer src="js/10-assets.js"></script>
+<script defer src="js/11-player.js"></script>
+<script defer src="js/12-monsters.js"></script>
+<script defer src="js/13-input.js"></script>
+<script defer src="js/14-runes.js"></script>
+<script defer src="js/15-combat.js"></script>
+<script defer src="js/16-zones.js"></script>
+<script defer src="js/17-update.js"></script>
+<script defer src="js/18-hud.js"></script>
+<script defer src="js/19-panels.js"></script>
+<script defer src="js/20-abilities.js"></script>
+<script defer src="js/21-mainloop.js"></script>
+<script defer src="js/22-screens.js"></script>
+<script defer src="js/23-settings.js"></script>
+<script defer src="js/24-net.js"></script>
+<script defer src="js/25-waypoints.js"></script>
+<script defer src="js/26-boot.js"></script>
 </body>
 </html>
