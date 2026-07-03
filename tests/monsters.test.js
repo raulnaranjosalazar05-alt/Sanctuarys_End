@@ -15,7 +15,10 @@ function loadMonsters() {
   const sandbox = makeSandbox({ THREE: { Raycaster: Stub, Vector2: Stub, Vector3: Stub } });
   loadFiles(sandbox, CORE_FILES);
   loadFiles(sandbox, ['js/12-monsters.js']);
-  return runSnippet(sandbox, ';(globalThis.__mon={MTYPES,ELITE_MODS,deepenResist,monsterResistMult,normElem});');
+  return runSnippet(
+    sandbox,
+    ';(globalThis.__mon={MTYPES,ELITE_MODS,deepenResist,monsterResistMult,normElem,BOSS_DEFS,pickBossDef,BOSS_ABILITY,VARIANT_ABILITIES});',
+  );
 }
 
 const M = loadMonsters();
@@ -62,6 +65,33 @@ test('deepenResist strengthens resists with depth, floors at 0.25, and leaves vu
   const floor = M.deepenResist({ fire: 0.3 }, 100, true);
   assert.equal(floor.fire, 0.25, 'floored — depth can never make a monster immune');
   assert.equal(r.fire, 0.5, 'input map is cloned, not mutated');
+});
+
+test('every depth 1–70 resolves to an eligible boss, and the deep roster gates in', () => {
+  for (let d = 1; d <= 70; d++) {
+    const def = M.pickBossDef(d);
+    assert.ok(def, `depth ${d} must resolve a boss`);
+    assert.ok((def.minDepth || 0) <= d, `depth ${d} rolled ${def.name} (minDepth ${def.minDepth}) — gate violated`);
+  }
+  assert.equal(M.BOSS_DEFS.length, 9, 'roster: six v49 bosses + three deep bosses');
+  const deep = M.BOSS_DEFS.filter((b) => (b.minDepth || 0) >= 35).map((b) => b.minDepth);
+  assert.equal(JSON.stringify([...deep].sort((a, b) => a - b)), '[35,50,65]', 'deep bosses band at 35/50/65');
+});
+
+test('every boss ability kind resolves against BOSS_ABILITY (defs and variant defaults)', () => {
+  const lists = [];
+  for (const def of M.BOSS_DEFS) if (def.abilities) lists.push([def.name, def.abilities]);
+  for (const v in M.VARIANT_ABILITIES) lists.push([`variant:${v}`, M.VARIANT_ABILITIES[v]]);
+  for (const [who, abl] of lists) {
+    assert.ok(abl.length >= 3, `${who} should have a real kit (3+ abilities)`);
+    for (const ab of abl) {
+      assert.ok(M.BOSS_ABILITY[ab.kind], `${who} uses unknown ability kind "${ab.kind}"`);
+      if (ab.kind !== 'addphase') assert.ok(ab.cd > 0, `${who}.${ab.kind} needs a cooldown`);
+      if (ab.kind === 'summon' || ab.kind === 'addphase') {
+        for (const t of ab.types || []) assert.ok(M.MTYPES[t], `${who} summons unknown type "${t}"`);
+      }
+    }
+  }
 });
 
 test('monsterResistMult handles legacy strings, maps, aliases and shields', () => {
