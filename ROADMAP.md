@@ -5,6 +5,27 @@ v49 codebase. Every item names the code it builds on (`file:line` refs are into
 `js/`), so any item can be picked up and executed directly. Tiers are ordered by
 leverage: Tier 0 is nearly free, Tier 3 is the long game.
 
+## Status — updated for v50
+
+**✅ Tiers 0, 1 and 2 shipped in v50** (see `CHANGELOG.md` and the wiki's
+Version History for the full release notes). Line-item notes:
+
+- Tier 0: all shipped. The Devil unlock became the *Sigil of the Inferno*
+  (Pyraxis on Inferno); the premium vendor became the Dust shop; the legacy
+  passives were **exposed** (Techniques row) rather than cut — pre-v30 saves
+  can hold live ranks.
+- Tier 1: all shipped, including vendored three.js (`vendor/three-0.184.0/`,
+  CI-verified import closure). Remaining crumbs: the Google-fonts `<link>` is
+  still remote (cosmetic-only, page works without it), and the hero's shield
+  has no on-model visual yet.
+- Tier 2: all shipped — room-layout dungeons, deep bosses, wild hunts,
+  Journal achievements, offhands/2H, legendary rares, 6-piece sets, targeted
+  crafting, stash tabs, the Barbarian, and skill rank-ups.
+- Tier 3: **still the future** (below, unchanged) — plus the candidates that
+  emerged during v50: a hosted `wss://` relay, per-boss unique models for the
+  deep roster, monster pathfinding beyond wall-sliding, and an on-model
+  offhand visual.
+
 ## Snapshot — what v49 is
 
 A complete Diablo-style loop: 3 classes drawing from a shared pool of 22 active
