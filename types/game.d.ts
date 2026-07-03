@@ -129,8 +129,9 @@ interface Item {
   sockets?: (Gem | null)[];
 }
 
-/** Equipped items by slot (null when empty). */
-type Equipment = Record<Slot, Item | null>;
+/** Equipped items by slot (null when empty). The offhand slot ships in the save schema (v8) ahead of
+ *  offhand loot entering the Slot union, so it is named explicitly here. */
+type Equipment = Record<Slot | 'offhand', Item | null>;
 
 /** A world interaction point returned by interactables() (town gates, caves, waypoints, portals, vendors). */
 interface Interactable {
@@ -223,6 +224,10 @@ interface Character {
   skillRunes: Record<string, Record<string, number>>;
   /** Unspent rune/ability points (+1 per level from L2). */
   abilityPoints: number;
+  /** V8: persistent progress flags (e.g. `sigil` — the Depth 666 unlock). */
+  flags: Record<string, boolean>;
+  /** V8: achievement journal — `u` = unlocked (id -> 1), `n` = event counters (event -> count). */
+  ach: { u: Record<string, number>; n: Record<string, number> };
 }
 
 /** Global game settings (SAVE._data.settings). */

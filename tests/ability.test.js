@@ -27,8 +27,8 @@ function loadAbility() {
 
 const AB = loadAbility();
 
-test('save VERSION is bumped to 7 for the loadout/rune migration', () => {
-  assert.equal(AB.SAVE.VERSION, 7);
+test('save VERSION is bumped to 8 for the offhand/flags/journal migration', () => {
+  assert.equal(AB.SAVE.VERSION, 8);
 });
 
 test('defaultLoadout locks the basic attack, honors activeSkillId, and never duplicates', () => {
