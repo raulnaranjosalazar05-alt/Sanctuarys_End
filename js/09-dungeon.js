@@ -32,6 +32,7 @@ const dungeonBiomeCache = new Map(); // biome.name -> { sub, scatterIMs, fixedCo
 let dungeonLayout = null; // per-floor room graph (genDungeonLayout, 00-core); null on boss/666 arena floors
 /* distance from (x,z) to the nearest wall segment of the layout — used to keep re-scattered props off wall lines */
 function _nearWallLine(lay, x, z, m) { for (const w of lay.walls) { const dx = w.x2 - w.x1, dz = w.z2 - w.z1; const L2 = dx * dx + dz * dz || 1; let t = ((x - w.x1) * dx + (z - w.z1) * dz) / L2; t = clamp(t, 0, 1); if (Math.hypot(x - (w.x1 + dx * t), z - (w.z1 + dz * t)) < m) return true; } return false; }
+function _nearDoorGap(lay, x, z, m) { for (const d of lay.doors) { if (Math.hypot(x - d.x, z - d.z) < m) return true; } return false; } /* a prop collider inside a 9u door gap can seal the room graph — keep scatter well clear */
 const _dM4 = new THREE.Matrix4(), _dQ = new THREE.Quaternion(), _dE = new THREE.Euler(), _dV = new THREE.Vector3(), _dSc = new THREE.Vector3();
 function _imSetTF(im, tf) { for (let i = 0; i < tf.length; i++) { const t = tf[i], s = t.s || 1; _dE.set(t.rx || 0, t.ry || 0, t.rz || 0); _dQ.setFromEuler(_dE); _dV.set(t.x, t.y || 0, t.z); _dSc.set(t.sx || s, t.sy || s, t.sz || s); _dM4.compose(_dV, _dQ, _dSc); im.setMatrixAt(i, _dM4); } im.instanceMatrix.needsUpdate = true; }
 /* Fresh layout on (re-)entry: re-randomize each tagged InstancedMesh's instance positions/rotations within the
@@ -45,7 +46,12 @@ function _rescatterDungeon(c) {
   const lay = dungeonLayout; const R = DUNG_HALF - 6;
   for (const im of c.scatterIMs) {
     const tf = [];
-    for (const m of im.userData.scatterMeta) { let x = 0, z = 0; for (let t = 0; t < 4; t++) { const ang = rand(0, 6.28), d = rand(8, R); x = Math.cos(ang) * d; z = Math.sin(ang) * d; if (!lay || !_nearWallLine(lay, x, z, 2.6)) break; } tf.push({ x, z, ry: rand(0, 6), s: m.s, cr: m.cr }); }
+    for (const m of im.userData.scatterMeta) {
+      let x = 0, z = 0, ok = false;
+      for (let t = 0; t < 4 && !ok; t++) { const ang = rand(0, 6.28), d = rand(8, R); x = Math.cos(ang) * d; z = Math.sin(ang) * d; ok = !lay || (!_nearWallLine(lay, x, z, 2.6) && !_nearDoorGap(lay, x, z, 6.5)); }
+      if (!ok && lay) { const p = layoutRoomPoint(lay, randi(0, lay.rooms.length - 1), 7); x = p.x; z = p.z; } /* never keep a wall/door-fouling position — margin-7 room interiors are clear of both */
+      tf.push({ x, z, ry: rand(0, 6), s: m.s, cr: m.cr });
+    }
     _imSetTF(im, tf);
     for (const t of tf) if (t.cr != null) dungeonColliders.push({ x: t.x, z: t.z, r: t.cr });
   }
@@ -62,7 +68,9 @@ function _rescatterDungeon(c) {
         const n = Math.max(1, Math.round(len / pieceW)); const step = len / n;
         for (let k = 0; k < n && tf.length < c.wallIM.instanceMatrix.count - 1; k++) {
           const t = (k + 0.5) / n; const x = w.x1 + dx * t, z = w.z1 + dz * t;
-          if (ws.box) tf.push({ x, z, y: 2.5, ry, sx: vert ? 1.4 : step, sy: 5, sz: vert ? step : 1.4 });
+          /* stretch along LOCAL x only and let ry orient it — compose() applies scale before rotation, so
+             pre-swapping the axes AND rotating would turn the piece 90° away from its collider line */
+          if (ws.box) tf.push({ x, z, y: 2.5, ry, sx: step, sy: 5, sz: 1.4 });
           else tf.push({ x, z, ry, sx: step / ws.w, sy: ws.sy, sz: ws.sy });
         }
         const cn = Math.max(1, Math.round(len / 2.2)); // circle-collider chain — the same mechanism pillars use
@@ -118,13 +126,15 @@ function _fillDungeonBiome(dungeonGroup, depth, th, fires, fixedColliders, scatt
     const ruK = [['rubble_large', 13], ['rubble_half', 12]];
     for (const [k, cnt] of ruK) { const metas = []; for (let i = 0; i < cnt; i++) { const s = rand(0.7, 1.5) / PROP_PROTO[k].base; metas.push({ s, cr: Math.max(PROP_PROTO[k].size.x, PROP_PROTO[k].size.z) * s * 0.45 }); } addScatter(PROP_PROTO[k].geo, tintPropMat(PROP_PROTO[k].mat, th.rock), metas, { recv: true }); }
   } else {
-    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), Sc = new THREE.Vector3();
-    const pim = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2, 1.5, 1, 6), new THREE.MeshPhongMaterial({ specular: 0x000000, color: th.pillar, flatShading: true, map: texStone(2, 4) }), 60); pim.receiveShadow = true; pim.frustumCulled = false;
-    for (let i = 0; i < 60; i++) { const ang = rand(0, 6.28), d = rand(10, R), x = Math.cos(ang) * d, z = Math.sin(ang) * d, h = rand(6, 12), rs = rand(0.7, 1.2); E.set(0, rand(0, 6), 0); Q.setFromEuler(E); V.set(x, h / 2, z); Sc.set(rs, h, rs); M.compose(V, Q, Sc); pim.setMatrixAt(i, M); fixedColliders.push({ x, z, r: 1.7 }); }
-    pim.instanceMatrix.needsUpdate = true; dungeonGroup.add(pim);
-    const rim = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshPhongMaterial({ specular: 0x000000, color: th.rock, flatShading: true, map: texStone(2, 2) }), 25); rim.frustumCulled = false;
-    for (let i = 0; i < 25; i++) { const x = rand(-R, R), z = rand(-R, R), s = rand(1, 2.4); E.set(rand(0, 6), rand(0, 6), rand(0, 6)); Q.setFromEuler(E); V.set(x, s * 0.4, z); Sc.set(s, s, s); M.compose(V, Q, Sc); rim.setMatrixAt(i, M); fixedColliders.push({ x, z, r: s * 0.9 }); }
-    rim.instanceMatrix.needsUpdate = true; dungeonGroup.add(rim);
+    /* fallback (no prop kit): pillars/rocks are tagged scatter IMs like the kit path, so every floor re-rolls
+       them layout-aware (wall/door avoidance in _rescatterDungeon). Geometry is base-anchored at y=0 to match
+       the scatter contract. Frozen build-time positions here used to straddle wall lines and seal door gaps. */
+    const pGeo = new THREE.CylinderGeometry(1.2, 1.5, 9, 6).translate(0, 4.5, 0);
+    const pMat = new THREE.MeshPhongMaterial({ specular: 0x000000, color: th.pillar, flatShading: true, map: texStone(2, 4) });
+    { const metas = []; for (let i = 0; i < 60; i++) metas.push({ s: rand(0.75, 1.3), cr: 1.7 }); addScatter(pGeo, pMat, metas, { recv: true }); }
+    const rGeo = new THREE.DodecahedronGeometry(1, 0).translate(0, 0.6, 0);
+    const rMat = new THREE.MeshPhongMaterial({ specular: 0x000000, color: th.rock, flatShading: true, map: texStone(2, 2) });
+    { const metas = []; for (let i = 0; i < 25; i++) { const s = rand(1, 2.4); metas.push({ s, cr: s * 0.9 }); } addScatter(rGeo, rMat, metas, { recv: true }); }
   }
   /* campfires live in per-fire wrapper groups so _rescatterDungeon can move them to room-safe spots each floor
      (PointLight count stays constant → no recompile); their colliders are pushed per-floor, not into fixed */

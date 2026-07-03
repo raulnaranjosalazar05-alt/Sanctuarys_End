@@ -146,6 +146,53 @@ test('deep rares can roll a legendary effect from the curated pool', () => {
   }
 });
 
+test('reforging a two-hander keeps its damage premium and its flag', () => {
+  IT.setClass('warrior');
+  // ilvl-10 rare: a plain reroll caps at round((4+13+4)*1.4)=29; the reapplied 2H premium floors at
+  // round(round((4+13+0)*1.4)*1.4)=34 — so any reforged h2 baseStat >30 proves the ×1.4 came back.
+  for (let i = 0; i < 25; i++) {
+    const it = {
+      slot: 'weapon',
+      rarity: 'rare',
+      ilvl: 10,
+      base: 'War Hammer',
+      h2: true,
+      baseStat: 34,
+      affixes: { dmg: 5 },
+      upgrade: 0,
+    };
+    IT.reforgeItem(it);
+    assert.equal(it.h2, true, 'reforge must not clear the two-handed flag');
+    assert.ok(it.baseStat > 30, `reforge stripped the 2H damage premium (got ${it.baseStat})`);
+  }
+});
+
+test('reforging a tome/quiver re-guarantees its kit affix (never a stat-less item)', () => {
+  for (const [kind, keys] of [
+    ['tome', ['skilldmg', 'mp']],
+    ['quiver', ['ias', 'dmg']],
+  ]) {
+    for (let i = 0; i < 25; i++) {
+      const it = {
+        slot: 'offhand',
+        ohKind: kind,
+        rarity: 'common',
+        ilvl: 8,
+        base: 'Tome',
+        baseStat: 0,
+        affixes: { mp: 9 },
+        upgrade: 0,
+      };
+      IT.reforgeItem(it);
+      assert.equal(it.ohKind, kind, 'kind identity survives');
+      assert.ok(
+        keys.some((k) => k in it.affixes),
+        `reforged common ${kind} came out stat-less: ${JSON.stringify(it.affixes)}`,
+      );
+    }
+  }
+});
+
 test('reforging a shield preserves its kind identity (base stat + Block)', () => {
   IT.setClass('warrior');
   let shield = null;

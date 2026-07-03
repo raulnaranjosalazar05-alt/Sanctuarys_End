@@ -281,10 +281,11 @@ function reforgeName(it) { const base = it.base || it.name; if (it.rarity === 'r
  *  tier first. Preserves id/slot/ilvl/base/upgrade/enchant; rerolls baseStat to match (possibly new) rarity. */
 function reforgeItem(it) {
   if (it.rarity !== 'rare' && Math.random() < REFORGE_RARITY_UP) it.rarity = bumpRarity(it.rarity, 1);
-  if (it.slot !== 'offhand') it.baseStat = baseStatRoll(it.slot, it.ilvl, it.rarity); /* offhand base+block are kind identity (applyOffhandKind); reforge only rerolls its affixes */
+  if (it.slot !== 'offhand') { it.baseStat = baseStatRoll(it.slot, it.ilvl, it.rarity); if (it.h2) it.baseStat = Math.round(it.baseStat * 1.4); } /* offhand base+block are kind identity (applyOffhandKind); two-handers keep their damage premium */
   it.affixes = {};
   const [lo, hi] = RARITY_AFFIX[it.rarity]; const cnt = randi(lo, hi); const pool = [...AFFIX_KEYS];
   for (let i = 0; i < cnt; i++) { if (!pool.length) break; const k = pool.splice(randi(0, pool.length - 1), 1)[0]; it.affixes[k] = affixRoll(k, it.ilvl, it.rarity); }
+  if (it.slot === 'offhand' && (it.ohKind === 'tome' || it.ohKind === 'quiver')) applyOffhandKind(it, { kind: it.ohKind }, it.ilvl, it.rarity); /* re-guarantee the kit affix the wipe above destroyed — a reforged common tome must never come out stat-less */
   it.name = reforgeName(it);
   return it;
 }
