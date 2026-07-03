@@ -15,9 +15,9 @@ Version History for the full release notes). Line-item notes:
   passives were **exposed** (Techniques row) rather than cut — pre-v30 saves
   can hold live ranks.
 - Tier 1: all shipped, including vendored three.js (`vendor/three-0.184.0/`,
-  CI-verified import closure). Remaining crumbs: the Google-fonts `<link>` is
-  still remote (cosmetic-only, page works without it), and the hero's shield
-  has no on-model visual yet.
+  CI-verified import closure) and the vendored Cinzel display font
+  (`vendor/fonts/cinzel/`) — the page now has **zero** remote runtime
+  dependencies. Remaining crumb: the hero's shield has no on-model visual yet.
 - Tier 2: all shipped — room-layout dungeons, deep bosses, wild hunts,
   Journal achievements, offhands/2H, legendary rares, 6-piece sets, targeted
   crafting, stash tabs, the Barbarian, and skill rank-ups.

@@ -89,6 +89,34 @@ test('the vendored addon closure is complete (every relative import resolves on 
   assert.ok(seen.size >= 10, `closure suspiciously small (${seen.size} files)`);
 });
 
+test('fonts are self-hosted: no remote <link> and the vendored Cinzel files exist on disk', () => {
+  // v50 self-hosts the Cinzel display font too — the page must have no remote stylesheet/preconnect at all,
+  // or a network-blocked player silently falls back to Georgia. Assert every <link href> is repo-relative and
+  // that the vendored CSS + its woff2 files are present (so a dropped file fails CI, not the browser).
+  const linkRe = /<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi;
+  const root = path.join(__dirname, '..');
+  let m;
+  let sawFontCss = false;
+  while ((m = linkRe.exec(HTML))) {
+    const href = m[1];
+    assert.ok(!/^(https?:)?\/\//i.test(href), `<link> points at a remote URL: ${href}`);
+    if (/cinzel\.css$/.test(href)) {
+      sawFontCss = true;
+      assert.ok(fs.statSync(path.join(root, href)).isFile(), `vendored font CSS missing on disk: ${href}`);
+    }
+  }
+  assert.ok(sawFontCss, 'sanctuary.html should link the vendored vendor/fonts/cinzel/cinzel.css');
+  const cssDir = path.join(root, 'vendor', 'fonts', 'cinzel');
+  const css = fs.readFileSync(path.join(cssDir, 'cinzel.css'), 'utf8');
+  const srcRe = /url\(([^)]+)\)/g;
+  let s;
+  while ((s = srcRe.exec(css))) {
+    const rel = s[1].replace(/['"]/g, '').trim();
+    assert.ok(!/^(https?:)?\/\//i.test(rel), `@font-face src is remote: ${rel}`);
+    assert.ok(fs.statSync(path.join(cssDir, rel)).isFile(), `vendored woff2 missing on disk: ${rel}`);
+  }
+});
+
 test('the window.THREE / window.TSL shim and the classic game script are both present', () => {
   // game.js is a classic script that reads THREE/TSL as bare globals, so the module shim must assign them.
   assert.match(HTML, /window\.THREE\s*=/, 'missing window.THREE assignment (module shim)');
