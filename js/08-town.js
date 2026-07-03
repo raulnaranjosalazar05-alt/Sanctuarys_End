@@ -20,6 +20,20 @@ makeNPC('alchemist', -6, -12, 0x2a6a4a, 0x6affa6, true);
 const NPC_TOWNS = { vendor: ['town', 'highreach', 'emberhold'], stash: ['town', 'highreach', 'emberhold'], smith: ['town', 'highreach', 'emberhold'], alchemist: ['town', 'highreach', 'emberhold'], enchanter: ['town', 'highreach', 'emberhold'], gambler: ['highreach', 'emberhold'], jeweler: ['emberhold'], premiumVendor: ['emberhold'] };
 for (const _n of npcs) { _n.towns = NPC_TOWNS[_n.kind] || ['town', 'highreach', 'emberhold']; }
 const t_wildPortal = makePortal(0, -14, 0x6affa0); townGroup.add(t_wildPortal.group); // town -> wild
+/* secret cow level idol (Aldermere only, revealed once character.flags.devilSlain): resident in townGroup like
+   the wild portal so mergeStaticScenery/clearGroup never eat it — buildTown just toggles .visible. */
+function makeCowIdol(x, z) {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.5, 6), new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0x4a3a26, flatShading: true, map: texWood(1, 3) })); post.position.y = 0.75; post.castShadow = true; g.add(post);
+  const boneMat = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xe8e0cc, flatShading: true, map: texSkin(1, 1) });
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 7), boneMat); skull.position.y = 1.72; skull.scale.z = 1.15; skull.castShadow = true; g.add(skull);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.28, 0.34), boneMat); snout.position.set(0, 1.56, 0.42); g.add(snout);
+  for (const s of [-1, 1]) { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.6, 5), boneMat); horn.position.set(s * 0.46, 1.98, 0); horn.rotation.z = s * -0.7; g.add(horn); }
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff3a20 }); for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), eyeMat); e.position.set(s * 0.16, 1.78, 0.4); g.add(e); }
+  g.scale.setScalar(1.35); g.position.set(x, 0, z); townGroup.add(g); g.visible = false;
+  return { x, z, group: g };
+}
+const t_cowIdol = makeCowIdol(-14, 20);
 function makeCauldron(x, z) {
   const g = new THREE.Group();
   const ironMat = new THREE.MeshPhongMaterial({ specular: 0x111119, color: 0x262329, flatShading: true, map: texMetal(2, 2) });
@@ -250,6 +264,7 @@ function buildTown(area) {
   t_waypoint.x = A.waypoint[0]; t_waypoint.z = A.waypoint[1]; t_waypoint.group.position.set(A.waypoint[0], 0, A.waypoint[1]); townColliders.push({ x: A.waypoint[0], z: A.waypoint[1], r: 1.6 });
   t_cauldron.x = A.cauldron[0]; t_cauldron.z = A.cauldron[1]; t_cauldron.group.position.set(A.cauldron[0], 0, A.cauldron[1]); townColliders.push({ x: A.cauldron[0], z: A.cauldron[1], r: 1.4 });
   for (const n of npcs) { const inTown = (n.towns || []).includes(id); n.group.visible = inTown; const p = cfg.npcs[n.kind]; if (p && inTown) { n.x = p[0]; n.z = p[1]; n.group.position.set(p[0], 0, p[1]); n.group.rotation.y = (p[2] != null) ? p[2] : Math.atan2(-p[0], -p[1]); townColliders.push({ x: p[0], z: p[1], r: 1.2 }); } }
+  t_cowIdol.group.visible = id === 'town' && !!(character && character.flags && character.flags.devilSlain); if (t_cowIdol.group.visible) townColliders.push({ x: t_cowIdol.x, z: t_cowIdol.z, r: 0.8 });
   _lightBucket = 'static';
   try { mergeStaticScenery(townSceneryGroup, new Set(townFires.map(f => f.flame))); } catch (e) { console.warn('town scenery merge failed; using unmerged:', e && e.message); } /* Phase 4: collapse static draws; skip animated fire flames */
   buildTownVillagers(cfg.villagers);
@@ -280,4 +295,4 @@ const dungeonExtraGroup = new THREE.Group(); dungeonExtraGroup.visible = false; 
 const dungeonWallMat = new THREE.MeshStandardMaterial({ color: 0x3a3340, roughness: 1.0, metalness: 0.0, map: texStone(16, 2), normalMap: _flatNormal(), roughnessMap: _whitePx(), aoMap: _whitePx(), side: THREE.DoubleSide }); dungeonWallMat.normalScale.set(0.7, 0.7);
 const dungeonWallGeo = new THREE.CylinderGeometry(DUNG_BACK_R, DUNG_BACK_R, 11, 80, 1, true); dungeonWallGeo.setAttribute('uv1', dungeonWallGeo.attributes.uv);
 const dungeonWall = new THREE.Mesh(dungeonWallGeo, dungeonWallMat); dungeonWall.position.y = 5.5; dungeonWall.userData.noDispose = true; dungeonExtraGroup.add(dungeonWall);
-let dungeonFires = []; let d_deeperPortal = null; let curTheme = null;
+let dungeonFires = []; let d_deeperPortal = null; let d_cowExit = null; let curTheme = null;

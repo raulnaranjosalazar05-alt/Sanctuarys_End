@@ -27,6 +27,7 @@ const MTYPES = {
     hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 },
     onAI(m, d, fr) { if (m.blCd == null) m.blCd = randi(220, 380); m.blCd -= fr; if (m.blCd <= 0 && d < 40) { m.blCd = 380; spawnExplosion(m.x, m.z, 0x9f6aff); const a = Math.atan2(player.x - m.x, player.z - m.z) + (Math.random() < 0.5 ? -1 : 1) * rand(1.2, 1.9); m.x = player.x - Math.sin(a) * 18; m.z = player.z - Math.cos(a) * 18; clampEntToZone(m); spawnExplosion(m.x, m.z, 0x9f6aff); } }
   },
+  cow: { hp: 55, dmg: 13, speed: 0.16, r: 1.5, col: 0xf0ead8, xp: 20, scale: 1.15, name: 'Hell Bovine', resist: { phys: 0.75, poison: 0.75, fire: 1.2 } }, // secret cow level only (COW_BIOME pool)
   totem: {
     hp: 22, dmg: 0, speed: 0, r: 0.9, col: 0x3ad0a0, xp: 6, scale: 0.9, name: 'Healing Totem', stationary: true, resist: { phys: 1.2 },
     onAI(m, d, fr) { if (m.pulseCd == null) m.pulseCd = 90; m.pulseCd -= fr; if (m.pulseCd <= 0) { m.pulseCd = 90; let healed = false; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.hpMax && !o.boss && Math.hypot(o.x - m.x, o.z - m.z) < 14) { o.hp = Math.min(o.hpMax, o.hp + o.hpMax * 0.03); healed = true; } } if (healed) spawnExplosion(m.x, m.z, 0x3ad0a0); } }
@@ -105,6 +106,20 @@ function buildMonsterMesh(t, col, scale) {
     const tail = new THREE.Mesh(_mGeo('hh_tail', () => new THREE.ConeGeometry(0.13, 1.0, 5)), limbMat); tail.position.set(0, 1.1, -1.05); tail.rotation.x = -0.9; g.add(tail);
     const hG = _mGeo('hh_horn', () => new THREE.ConeGeometry(0.1, 0.5, 4)); for (const hx of [-0.2, 0.2]) { const h = new THREE.Mesh(hG, limbMat); h.position.set(hx, 1.42, 0.95); h.rotation.x = -0.3; g.add(h); }
     eyeY = 1.16; eyeZ = 1.32; eyeX = 0.17;
+  } else if (t === 'cow') { // Hell Bovine: upright cow with a polearm (Diablo II homage)
+    body = new THREE.Mesh(_mGeo('cow_torso', () => new THREE.CylinderGeometry(0.62, 0.78, 1.6, 7)), bodyMat); body.position.y = 1.35;
+    const spotG = _mGeo('cow_spot', () => new THREE.SphereGeometry(0.28, 6, 5)); const spotM = _mMat('cowspot', () => _mPhong(0x1a1a1a));
+    for (const sp of [[0.4, 1.7, 0.52], [-0.48, 1.15, 0.46], [0.18, 0.92, -0.6]]) { const s = new THREE.Mesh(spotG, spotM); s.position.set(sp[0], sp[1], sp[2]); s.scale.z = 0.4; g.add(s); }
+    const head = new THREE.Mesh(_mGeo('mheadg', () => new THREE.IcosahedronGeometry(0.5, 0)), headMat); head.position.set(0, 2.5, 0.06); head.castShadow = true; g.add(head);
+    const muzzle = new THREE.Mesh(_mGeo('cow_muzzle', () => new THREE.BoxGeometry(0.44, 0.3, 0.34)), _mMat('cowmuzzle', () => _mPhong(0xd8a0a0))); muzzle.position.set(0, 2.36, 0.5); g.add(muzzle);
+    const earG = _mGeo('cow_ear', () => new THREE.ConeGeometry(0.11, 0.34, 4)); for (const s of [-1, 1]) { const e = new THREE.Mesh(earG, limbMat); e.position.set(s * 0.52, 2.68, 0); e.rotation.z = s * -1.35; g.add(e); }
+    const hG = _mGeo('cow_horn', () => new THREE.ConeGeometry(0.12, 0.6, 5)); const hM = _mMat('cowhornM', () => _mPhong(0xe8e0cc)); for (const s of [-1, 1]) { const h = new THREE.Mesh(hG, hM); h.position.set(s * 0.38, 2.9, 0); h.rotation.z = s * -0.55; g.add(h); }
+    const legGeo = _mGeo('cow_leg', () => new THREE.CylinderGeometry(0.2, 0.24, 0.85, 5));
+    for (const s of [-1, 1]) { const l = new THREE.Mesh(legGeo, limbMat); l.position.set(s * 0.4, 0.42, 0); g.add(l); }
+    const aL = new THREE.Mesh(_mGeo('cow_arm', () => new THREE.CylinderGeometry(0.14, 0.17, 1.0, 5)), limbMat); aL.position.set(-0.82, 1.5, 0.06); aL.rotation.z = 0.3; aL.castShadow = true; g.add(aL);
+    const pole = new THREE.Mesh(_mGeo('cow_pole', () => new THREE.CylinderGeometry(0.06, 0.08, 3.8, 5)), _mMat('mstaff', () => _mPhong(0x3a2a1a, { map: texWood(1, 3) }))); pole.position.set(0.85, 1.9, 0.1); pole.rotation.z = 0.05; g.add(pole);
+    const blade = new THREE.Mesh(_mGeo('cow_blade', () => new THREE.ConeGeometry(0.22, 0.9, 4)), _mMat('cowblade', () => _mPhong(0xb8c0cc))); blade.position.set(0.94, 3.85, 0.1); blade.scale.z = 0.35; g.add(blade);
+    eyeY = 2.56; eyeZ = 0.46; eyeX = 0.17;
   } else {
     const P = t === 'brute' ? { tR: 1.02, tH: 1.8, by: 1.5, hy: 2.95, hs: 1.15, armL: 1.3, armR: 0.26, legL: 1.05, legR: 0.3, stance: 0.55 }
       : t === 'fallen' ? { tR: 0.56, tH: 1.0, by: 0.95, hy: 1.95, hs: 0.9, armL: 0.8, armR: 0.14, legL: 0.7, legR: 0.17, stance: 0.3 }
@@ -253,6 +268,41 @@ function spawnDevil(d) {
   const dm = DIFF[difficulty] || DIFF.Normal; const B = BOSS_SCALE;
   const hp = Math.round(B.hpBase * (1 + d * B.hpLin + Math.pow(d * B.hpQuad, 2)) * dm.hp * 3); const cdMul = clamp(1 - d * 0.015, 0.45, 1); const mesh = buildDevil(); mesh.position.set(0, 0, -34); scene.add(mesh); cullLights();
   const b = Object.assign({ type: 'boss', x: 0, z: -34, hp, hpMax: hp, r: 6.5, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg * 1.5), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp * 4), speed: 0.06, col: 0x6a0e12, scale: 5.5, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: 'Belphegor, Lord of the Inferno · Depth ' + d, phase: 1, variant: 'devil', abilities: null, shield: 0, shieldMul: 0.4 });
+  monsters.push(b); boss = b; sfx('boss');
+}
+/* ---- secret cow level unique: the Cow King (COW_DEPTH only; reached via the Aldermere idol) ---- */
+function buildCowKing() {
+  const g = new THREE.Group(); const sc = 3.2;
+  const bodyMat = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xf0ead8, flatShading: true, map: texSkin(1, 1) });
+  const dark = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0x1a1a1a, flatShading: true, map: texSkin(1, 1) });
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.72 * sc, 0.95 * sc, 1.8 * sc, 8), bodyMat); torso.position.y = 1.5 * sc; torso.castShadow = true; g.add(torso);
+  const spotG = new THREE.SphereGeometry(0.34 * sc, 6, 5);
+  for (const sp of [[0.5, 1.9, 0.62], [-0.55, 1.2, 0.55], [0.2, 1.0, -0.7]]) { const s = new THREE.Mesh(spotG, dark); s.position.set(sp[0] * sc, sp[1] * sc, sp[2] * sc); s.scale.z = 0.4; g.add(s); }
+  const legG = new THREE.CylinderGeometry(0.3 * sc, 0.38 * sc, 1.2 * sc, 6); for (const s of [-1, 1]) { const l = new THREE.Mesh(legG, dark); l.position.set(s * 0.5 * sc, 0.6 * sc, 0); g.add(l); }
+  const aL = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * sc, 0.26 * sc, 1.4 * sc, 6), dark); aL.position.set(-1.0 * sc, 1.7 * sc, 0.08 * sc); aL.rotation.z = 0.3; aL.castShadow = true; g.add(aL);
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6 * sc, 0), bodyMat); head.position.y = 2.85 * sc; head.castShadow = true; g.add(head);
+  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.56 * sc, 0.36 * sc, 0.4 * sc), new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xd8a0a0, flatShading: true })); muzzle.position.set(0, 2.68 * sc, 0.58 * sc); g.add(muzzle);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff3a20 }); const eg = new THREE.SphereGeometry(0.13 * sc, 6, 6); for (const s of [-1, 1]) { const e = new THREE.Mesh(eg, eyeMat); e.position.set(s * 0.24 * sc, 2.95 * sc, 0.5 * sc); g.add(e); }
+  const hornMat = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xe8e0cc, flatShading: true });
+  for (const s of [-1, 1]) { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.16 * sc, 0.95 * sc, 5), hornMat); horn.position.set(s * 0.5 * sc, 3.3 * sc, 0); horn.rotation.z = s * -0.55; g.add(horn); }
+  const gold = new THREE.MeshBasicMaterial({ color: 0xffd24d });
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.4 * sc, 0.44 * sc, 0.28 * sc, 8), gold); crown.position.y = 3.5 * sc; g.add(crown);
+  for (let i = 0; i < 4; i++) { const ang = i / 4 * Math.PI * 2; const p = new THREE.Mesh(new THREE.ConeGeometry(0.09 * sc, 0.3 * sc, 4), gold); p.position.set(Math.cos(ang) * 0.38 * sc, 3.72 * sc, Math.sin(ang) * 0.38 * sc); g.add(p); }
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * sc, 0.09 * sc, 4.4 * sc, 5), new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0x3a2a1a, flatShading: true, map: texWood(1, 3) })); pole.position.set(1.15 * sc, 2.1 * sc, 0.1 * sc); pole.rotation.z = 0.06; g.add(pole);
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.3 * sc, 1.1 * sc, 4), new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xb8c0cc, flatShading: true })); blade.position.set(1.28 * sc, 4.35 * sc, 0.1 * sc); blade.scale.z = 0.35; g.add(blade);
+  const aura = new THREE.Mesh(new THREE.TorusGeometry(1.35 * sc, 0.3, 8, 24), new THREE.MeshBasicMaterial({ color: 0xffd24d })); aura.rotation.x = Math.PI / 2; aura.position.y = 0.5; g.add(aura); g.userData.aura = aura;
+  const lt = regLight(new THREE.PointLight(0xffd24d, 2.6 * Math.PI, 44, 2), true); lt.visible = false; lt.position.y = 4; g.add(lt); g.userData.body = torso; g.userData.eliteLight = lt; return g;
+}
+// Cow-level scaling anchor: the player's proven depth, not the raw COW_DEPTH sentinel (setScale's quadratic at 999 would be absurd).
+function cowScaleDepth() { return Math.max(30, (character && character.maxDepth) || 30); }
+function spawnCowKing() {
+  const dm = DIFF[difficulty] || DIFF.Normal; const B = BOSS_SCALE; const ed = cowScaleDepth();
+  const hp = Math.round(B.hpBase * (1 + ed * B.hpLin + Math.pow(ed * B.hpQuad, 2)) * dm.hp * 2); const cdMul = clamp(1 - ed * 0.015, 0.45, 1); const mesh = buildCowKing(); mesh.position.set(0, 0, -30); scene.add(mesh); cullLights();
+  const b = Object.assign({ type: 'boss', x: 0, z: -30, hp, hpMax: hp, r: 4.8, dmg: Math.round(B.dmgBase * (1 + ed * B.dmgLin + Math.pow(ed * B.dmgQuad, 2)) * dm.dmg * 1.2), xp: Math.round(B.xpBase * (1 + ed * B.xpLin) * dm.xp * 3), speed: 0.07, col: 0xf0ead8, scale: 3.2, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: 'The Cow King', phase: 1, variant: 'cowking', abilities: [
+    { kind: 'volley', cd: 110, p2cd: 70, arc: 2, spd: 0.58, t0: 120 },
+    { kind: 'slam', cd: 260, r: 6.5, mul: 1.3, wind: 850, t0: 240 },
+    { kind: 'summon', cd: 320, p2cd: 220, types: ['cow'], n: 3, p2n: 4, rad: 6, shield: 150, msg: 'The Cow King bellows — the herd answers!', t0: 300 },
+  ], shield: 0, shieldMul: 0.5 });
   monsters.push(b); boss = b; sfx('boss');
 }
 function bossVolley(m, arc, spd, chill) {

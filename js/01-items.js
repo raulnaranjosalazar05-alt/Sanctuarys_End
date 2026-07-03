@@ -4,7 +4,7 @@ const SLOTS = ['weapon', 'offhand', 'helm', 'armor', 'gloves', 'boots', 'ring', 
 /* ---- floor bounties: optional per-floor goal that pays a bonus (soft gate; portal stays open) ----
    Pure (no THREE/DOM) so tests/objectives.test.js can load them from the browser-free prefix. */
 function rollFloorObjective(depth) {
-  if (depth <= 1 || depth % 5 === 0 || depth === 666) return null; // boss floors + the opening floor get no bounty
+  if (depth <= 1 || depth % 5 === 0 || depth === 666 || depth === COW_DEPTH) return null; // boss floors + the opening floor get no bounty
   const r = Math.random();
   if (r < 0.35) return { kind: 'champion', done: false };
   if (r < 0.55) return { kind: 'elites', target: randi(2, 3), count: 0, done: false };

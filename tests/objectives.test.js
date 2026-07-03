@@ -37,7 +37,8 @@ function withRandom(val, fn) {
 }
 
 test('no bounty on boss floors or the opening floor', () => {
-  for (const d of [0, 1, 5, 10, 15, 666]) {
+  for (const d of [0, 1, 5, 10, 15, 666, 999]) {
+    // 999 = COW_DEPTH (secret cow level — boss floor, no bounty)
     assert.equal(rollFloorObjective(d), null, `depth ${d} should have no bounty`);
   }
 });

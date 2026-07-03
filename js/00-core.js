@@ -62,6 +62,7 @@ function diffUnlocked(name) {
 // endgame depth scaling (data-driven; early floors stay ~linear, late floors ramp up via the quadratic terms)
 const DSCALE = { hpLin: 0.4, hpQuad: 0.05, dmgLin: 0.28, dmgQuad: 0.04, xpLin: 0.5, xpQuad: 0.04, ilvlPerDepth: 2 };
 const BOSS_SCALE = { hpBase: 380, hpLin: 0.5, hpQuad: 0.05, dmgBase: 14, dmgLin: 0.3, dmgQuad: 0.03, xpBase: 300, xpLin: 0.6 };
+const COW_DEPTH = 999; // Secret Cow Level sentinel (Diablo II homage); never written to character.maxDepth
 let shake = 0;
 /* ================= DUNGEON LAYOUT (pure & browser-free — tests/layout.test.js loads this file) =================
    Coarse-grid room generator: the ±half hall is cut into a G×G grid of cells, adjacent cells merge into 6–9

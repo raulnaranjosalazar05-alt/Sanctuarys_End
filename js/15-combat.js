@@ -145,7 +145,10 @@ function killMonster(m) {
   sfx(m.boss ? 'bossdie' : 'death'); spawnSparks(m.x, m.z, 0xff7a3a, m.boss ? 8 : 7); impactFlash(m.x, m.z, m.boss ? 0xff5030 : 0xffb060);
   if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), [], 'a death explosion'); }
   if (m.boss) {
-    bossActive = false; boss = null; if (d_deeperPortal) d_deeperPortal.group.visible = true; spawnExplosion(m.x, m.z, 0xff3020); showMsg('The way down opens!');
+    bossActive = false; boss = null;
+    if (depth === COW_DEPTH) { if (d_cowExit) d_cowExit.group.visible = true; spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The Cow King is slain! The herd is avenged… moo.'); }
+    else { if (d_deeperPortal) d_deeperPortal.group.visible = true; spawnExplosion(m.x, m.z, 0xff3020); showMsg('The way down opens!'); }
+    if (m.variant === 'devil' && character && character.flags && !character.flags.devilSlain) { character.flags.devilSlain = true; saveProgress(false); setTimeout(() => showMsg('Something bovine stirs near Aldermere…'), 2500); } /* keyed cow-level access: fell Belphegor */
     if (m.role === 'boss_dragonevo' && difficulty === 'Inferno' && character && character.flags && !character.flags.sigil) { character.flags.sigil = true; showMsg('🔥 The Sigil of the Inferno is yours — Depth 666 answers the Waypoints.'); sfx('level'); saveProgress(true); } /* keyed Devil access: fell Pyraxis on Inferno */
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 4, null, 0.35); for (let k = 0; k < 3; k++) { const c = rollItem(curScale.ilvl + 4, null, 0.35); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(150, 300) + depth * 20)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'potion', 1); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'manapotion', 1);

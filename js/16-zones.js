@@ -11,7 +11,7 @@ function setZoneVisuals() {
   /* Phase 1a relight: these per-zone overrides re-set hemi/moon/torch intensity every zone transition, so they get the same x Math.PI scale as the construction sites (otherwise zones darken to ~1/pi while the menu looks fine). */
   if (zone === 'town') { setGroundFlat(true); ensureColorBg(); scene.background.setHex(0x0a0805); scene.fog.color.setHex(0x0a0805); scene.fog.near = 70; scene.fog.far = 180; hemi.intensity = 0.6 * Math.PI; moon.intensity = 0.7 * Math.PI; if (groundMat.vertexColors) { groundMat.vertexColors = false; groundMat.needsUpdate = true; } groundMat.color.setHex(0x3a2f22); setAmbient('ember', 0xffb060); torch.intensity = 1.4 * Math.PI; torch.distance = 64; setBiomeGrade({ t: [1.06, 1.00, 0.90], v: 0.28 }); restoreProcEnv(); loadTownGround(); }
   else if (zone === 'wild') { setGroundFlat(false); const rg = curRegion || REGIONS[0]; if (scene.background.isColor) scene.background.setHex(rg.fog); scene.fog.color.setHex(rg.fog); scene.fog.near = 58; scene.fog.far = 168; hemi.intensity = 0.42 * Math.PI; moon.intensity = 0.55 * Math.PI; if (groundMat.vertexColors) { groundMat.vertexColors = false; groundMat.needsUpdate = true; } groundMat.color.setHex(groundTexOn() ? (rg.groundTint || 0xffffff) : rg.groundCol); setAmbient('ember', rg.amb); torch.intensity = 1.5 * Math.PI; torch.distance = 66; setBiomeGrade({ t: [0.96, 1.05, 0.95], v: 0.30 }); loadRegionEnv(rg); loadRegionGround(rg); }
-  else { setGroundFlat(false); const th = curTheme || dungeonTheme(depth); const dk = clamp(0.52 - depth * 0.018, 0.34, 0.52) * Math.PI; ensureColorBg(); scene.background.setHex(th.fog); scene.fog.color.setHex(th.fog); scene.fog.near = 42; scene.fog.far = clamp(150 - depth * 5, 100, 150); hemi.intensity = dk; moon.intensity = 0.34 * Math.PI; if (groundMat.vertexColors) { groundMat.vertexColors = false; groundMat.needsUpdate = true; } groundMat.color.setHex(th.ground); setAmbient(th.amb, th.ambCol); torch.intensity = clamp(2.2 + depth * 0.09, 2.2, 4.4) * Math.PI; torch.distance = clamp(76 + depth * 1.6, 76, 114); setBiomeGrade(th.grade); restoreProcEnv(); loadDungeonGround(th); loadDungeonWall(th); }
+  else { setGroundFlat(false); const th = curTheme || dungeonTheme(depth); const dk = (th.daylight ? 0.9 : clamp(0.52 - depth * 0.018, 0.34, 0.52)) * Math.PI; ensureColorBg(); scene.background.setHex(th.fog); scene.fog.color.setHex(th.fog); scene.fog.near = th.daylight ? 60 : 42; scene.fog.far = th.daylight ? 220 : clamp(150 - depth * 5, 100, 150); hemi.intensity = dk; moon.intensity = 0.34 * Math.PI; if (groundMat.vertexColors) { groundMat.vertexColors = false; groundMat.needsUpdate = true; } groundMat.color.setHex(th.ground); setAmbient(th.amb, th.ambCol); torch.intensity = clamp(2.2 + depth * 0.09, 2.2, 4.4) * Math.PI; torch.distance = clamp(76 + depth * 1.6, 76, 114); setBiomeGrade(th.grade); restoreProcEnv(); loadDungeonGround(th); loadDungeonWall(th); }
 }
 const AREAS = [
   { id: 'town', name: 'Aldermere', kind: 'town', tier: 0, townTheme: { ground: 0x3a2f22, fog: 0x0a0805 } },
@@ -27,9 +27,9 @@ function themeTown(a) { if (a && a.townTheme) { groundMat.color.setHex(groundTex
 function themeWild() { const r = curRegion || REGIONS[0]; if (scene.background.isColor) scene.background.setHex(r.fog); scene.fog.color.setHex(r.fog); setAmbient('ember', r.amb); for (const f of wildFires) { f.light.color.setHex(r.fire); f.flame.material.color.setHex(r.fire); } loadRegionEnv(r); loadRegionGround(r); }
 function setScale() {
   const dm = DIFF[difficulty] || DIFF.Normal; if (zone === 'dungeon') {
-    const D = DSCALE;
-    curScale = { hp: (1 + depth * D.hpLin + Math.pow(depth * D.hpQuad, 2)) * dm.hp, dmg: (1 + depth * D.dmgLin + Math.pow(depth * D.dmgQuad, 2)) * dm.dmg, xp: (1 + depth * D.xpLin + Math.pow(depth * D.xpQuad, 2)) * dm.xp, ilvl: player.level + depth * D.ilvlPerDepth };
-    zoneLuck = Math.min(0.5, depth * 0.02);
+    const D = DSCALE; const sd = depth === COW_DEPTH ? cowScaleDepth() : depth; /* cow level scales to proven depth, not the 999 sentinel */
+    curScale = { hp: (1 + sd * D.hpLin + Math.pow(sd * D.hpQuad, 2)) * dm.hp, dmg: (1 + sd * D.dmgLin + Math.pow(sd * D.dmgQuad, 2)) * dm.dmg, xp: (1 + sd * D.xpLin + Math.pow(sd * D.xpQuad, 2)) * dm.xp, ilvl: player.level + sd * D.ilvlPerDepth };
+    zoneLuck = Math.min(0.5, sd * 0.02);
   }
   else if (zone === 'wild') { const lv = (curRegion && curRegion.lvl) || 1; curScale = { hp: (1 + lv * 0.12) * dm.hp, dmg: (1 + lv * 0.09) * dm.dmg, xp: (1 + lv * 0.15) * dm.xp, ilvl: Math.max(player.level, lv) + 2 }; zoneLuck = 0; }
   else { curScale = { hp: dm.hp, dmg: dm.dmg, xp: dm.xp, ilvl: player.level }; zoneLuck = 0; }
@@ -199,13 +199,20 @@ function renderObjective() {
   if (s !== _objTxt._s) { _objTxt._s = s; _objTxt.textContent = s; _objTxt.style.display = s ? 'block' : 'none'; }
 }
 function enterDungeon(d) {
-  zone = 'dungeon'; depth = d; if (d > character.maxDepth) { character.maxDepth = d; } _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — Depth ' + d; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + 'Depth ' + d);
-  if (depth === 666) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnDevil(depth); bossActive = true; setTimeout(() => showMsg('The Devil of the Inferno bars the way…'), 900); }
+  zone = 'dungeon'; depth = d; if (d > character.maxDepth && d !== COW_DEPTH) { character.maxDepth = d; } /* the cow level never counts as a depth checkpoint (keeps it out of waypoints) */ _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; const _dl = d === COW_DEPTH ? '???' : 'Depth ' + d; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + _dl);
+  if (depth === COW_DEPTH) {
+    floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; if (d_cowExit) d_cowExit.group.visible = false;
+    spawnCowKing(); bossActive = true;
+    /* pre-spawn the herd directly: the _spawnQueue drain is gated on !bossActive, and spawning before warmScene keeps first-frame pipeline compile behind the loading gate */
+    for (let i = 0; i < 22; i++) { const a = rand(0, 6.28), dd = rand(14, DUNG_HALF - 12); spawnMonster('cow', null, { x: Math.cos(a) * dd, z: Math.sin(a) * dd }); }
+    setTimeout(() => showMsg('The herd stirs… Moo.'), 900);
+  }
+  else if (depth === 666) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnDevil(depth); bossActive = true; setTimeout(() => showMsg('The Devil of the Inferno bars the way…'), 900); }
   else if (depth % 5 === 0) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnBoss(depth); bossActive = true; setTimeout(() => showMsg('A guardian blocks the way down…'), 900); }
   else { if (d_deeperPortal) d_deeperPortal.group.visible = true; floorObj = rollFloorObjective(depth); if (floorObj && floorObj.kind === 'champion') { spawnChampion(depth); setTimeout(() => showMsg('A Champion stalks this floor…'), 900); } }
   placeShrines(); placeChest(); renderObjective();
   saveProgress(false);
-  warmScene((curTheme ? curTheme.name : 'Dungeon') + ' — Depth ' + depth);
+  warmScene((curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl);
 }
 
 /* ---------- interaction ---------- */
@@ -220,7 +227,7 @@ let _townInter = null;
 function invalidateTownInter() { _townInter = null; }
 /** @returns {Interactable[]} */
 function interactables() {
-  if (zone === 'town') return _townInter || (_townInter = [...npcs.filter(n => !n.towns || (curTownArea && n.towns.includes(curTownArea.id))).map(n => ({ kind: n.kind, x: n.x, z: n.z })), { kind: 'wild', x: t_wildPortal.x, z: t_wildPortal.z }, { kind: 'waypoint', x: t_waypoint.x, z: t_waypoint.z }, { kind: 'cauldron', x: t_cauldron.x, z: t_cauldron.z }]);
+  if (zone === 'town') return _townInter || (_townInter = [...npcs.filter(n => !n.towns || (curTownArea && n.towns.includes(curTownArea.id))).map(n => ({ kind: n.kind, x: n.x, z: n.z })), { kind: 'wild', x: t_wildPortal.x, z: t_wildPortal.z }, { kind: 'waypoint', x: t_waypoint.x, z: t_waypoint.z }, { kind: 'cauldron', x: t_cauldron.x, z: t_cauldron.z }, ...(curTownArea && curTownArea.id === 'town' && character && character.flags && character.flags.devilSlain ? [{ kind: 'cowportal', x: t_cowIdol.x, z: t_cowIdol.z }] : [])]); /* the bovine idol only answers in Aldermere after the Devil falls; cache invalidates on every town entry */
   if (zone === 'wild') {
     const r = curRegion || REGIONS[0];
     /** @type {Interactable[]} */
@@ -230,7 +237,8 @@ function interactables() {
     return arr;
   }
   if (bossActive) return [];
-  const arr = [{ kind: 'deeper', x: d_deeperPortal.x, z: d_deeperPortal.z }];
+  /** @type {Interactable[]} */
+  const arr = depth === COW_DEPTH ? [{ kind: 'cowexit', x: d_cowExit.x, z: d_cowExit.z }] : [{ kind: 'deeper', x: d_deeperPortal.x, z: d_deeperPortal.z }]; /* cow floor is a dead end — no way down */
   for (const s of shrines) if (!s.used) arr.push({ kind: 'shrine', x: s.x, z: s.z, ref: s });
   if (chest && !chest.opened) arr.push({ kind: 'chest', x: chest.x, z: chest.z });
   return arr;
@@ -245,6 +253,7 @@ function interact() {
   else if (o.kind === 'enchanter') openEnchanter(); else if (o.kind === 'gambler') openGambler(); else if (o.kind === 'jeweler') openJeweler(); else if (o.kind === 'premiumVendor') openVendor(2);
   else if (o.kind === 'wild') enterWild(wildForTown(curTownArea.id)); else if (o.kind === 'towngate') { markDiscovered(o.area); enterTown(AREAS.find(a => a.id === o.area)); }
   else if (o.kind === 'cave') enterDungeon(1); else if (o.kind === 'deeper') enterDungeon(depth + 1); else if (o.kind === 'shrine') activateShrine(o.ref); else if (o.kind === 'chest') openChest();
+  else if (o.kind === 'cowportal') enterDungeon(COW_DEPTH); else if (o.kind === 'cowexit') enterTown(AREAS[0]);
   else if (o.kind === 'wildnext') { const w = wildById(o.to); if (curRegion && curRegion.nextGate && ((character && character.maxDepth) || 0) < curRegion.nextGate) showMsg('Reach Depth ' + curRegion.nextGate + ' in the Descent to breach ' + (w ? w.name : 'the way') + '…'); else enterWild(o.to); }
   else if (o.kind === 'wildprev') enterWild(o.to);
   else if (o.kind === 'waypoint') openWaypoints(); else if (o.kind === 'cauldron') refillPotions();

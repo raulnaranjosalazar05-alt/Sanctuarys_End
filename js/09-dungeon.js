@@ -13,9 +13,10 @@ const BIOMES = [
   { name: 'Bone Cathedral', pillar: 0x4a4438, rock: 0x38322a, fire: 0xffcf8a, fog: 0x141008, ground: 0x2a2418, amb: 'dust', ambCol: 0xe8d8a0, deco: 'bonepile', grade: { t: [1.07, 1.01, 0.88], v: 0.34 }, pool: ['skeleton', 'skeleton', 'zombie', 'shaman', 'wraith', 'brute'] },
   { name: 'The Void', pillar: 0x3a2a4a, rock: 0x2a2036, fire: 0xb060ff, fog: 0x100818, ground: 0x1c1426, amb: 'rune', ambCol: 0xc080ff, deco: 'rune', grade: { t: [1.05, 0.93, 1.10], v: 0.42 }, pool: ['wraith', 'wraith', 'shaman', 'fallen', 'brute', 'imp'] },
 ];
+const COW_BIOME = { name: 'Moo Moo Meadow', pillar: 0x8a7a5a, rock: 0x5a7a3a, fire: 0xffcf6a, fog: 0x9ac8e8, ground: 0x3a7a2a, amb: 'spore', ambCol: 0xdff0aa, deco: 'swamp', grade: { t: [0.98, 1.06, 0.92], v: 0.30 }, pool: ['cow'], daylight: true }; // secret cow level (COW_DEPTH only)
 const HELL_BIOME = { name: 'The Inferno', pillar: 0x5a1810, rock: 0x3a100a, fire: 0xff3010, fog: 0x1a0402, ground: 0x300a06, amb: 'ember', ambCol: 0xff4a1a, deco: 'lava', grade: { t: [1.25, 0.82, 0.74], v: 0.5 }, pool: ['imp', 'hellhound', 'imp', 'hellhound', 'brute', 'fallen'] };
-function dungeonTheme(depth) { if (depth === 666) return HELL_BIOME; if (depth >= 22) return BIOMES[Math.floor((depth - 22) / 3) % BIOMES.length]; /* past the authored bands the themes cycle in 3-floor waves so deep runs keep thematic drift */ const i = depth >= 19 ? 6 : depth >= 16 ? 5 : depth >= 13 ? 4 : depth >= 10 ? 3 : depth >= 7 ? 2 : depth >= 4 ? 1 : 0; return BIOMES[i]; }
-function pickBiome(depth) { if (depth === 666) return HELL_BIOME; if (typeof window !== 'undefined' && window.__forceBiome != null && BIOMES[window.__forceBiome]) return BIOMES[window.__forceBiome]; /* perf A/B instrumentation: pin one biome so NUM_POINT_LIGHTS stays invariant across re-entries (unset in normal play) */ return Math.random() < 0.6 ? dungeonTheme(depth) : BIOMES[Math.floor(Math.random() * BIOMES.length)]; /* 60% depth-themed, 40% wildcard: depth has a thematic identity without losing re-run variety */ }
+function dungeonTheme(depth) { if (depth === COW_DEPTH) return COW_BIOME; if (depth === 666) return HELL_BIOME; if (depth >= 22) return BIOMES[Math.floor((depth - 22) / 3) % BIOMES.length]; /* past the authored bands the themes cycle in 3-floor waves so deep runs keep thematic drift */ const i = depth >= 19 ? 6 : depth >= 16 ? 5 : depth >= 13 ? 4 : depth >= 10 ? 3 : depth >= 7 ? 2 : depth >= 4 ? 1 : 0; return BIOMES[i]; }
+function pickBiome(depth) { if (depth === COW_DEPTH) return COW_BIOME; if (depth === 666) return HELL_BIOME; if (typeof window !== 'undefined' && window.__forceBiome != null && BIOMES[window.__forceBiome]) return BIOMES[window.__forceBiome]; /* perf A/B instrumentation: pin one biome so NUM_POINT_LIGHTS stays invariant across re-entries (unset in normal play) */ return Math.random() < 0.6 ? dungeonTheme(depth) : BIOMES[Math.floor(Math.random() * BIOMES.length)]; /* 60% depth-themed, 40% wildcard: depth has a thematic identity without losing re-run variety */ }
 /* shared prop instancing + per-tint material cache (one clone per atlas+hex, persists across rebuilds) */
 const _propMatCache = {};
 function tintPropMat(base, hex) { const key = base.uuid + ':' + hex; let m = _propMatCache[key]; if (!m) { m = base.clone(); if (m.color) m.color.setHex(hex); m.userData = Object.assign(m.userData || {}, { sharedProto: true }); _propMatCache[key] = m; } return m; }
@@ -102,12 +103,14 @@ function _buildDungeonBiome(depth, th) {
 }
 function buildDungeon(depth) {
   const th = curTheme = pickBiome(depth);
-  dungeonLayout = (depth % 5 === 0 || depth === 666) ? null : genDungeonLayout(DUNG_HALF, depth); /* boss floors stay open arenas */
+  dungeonLayout = (depth % 5 === 0 || depth === 666 || depth === COW_DEPTH) ? null : genDungeonLayout(DUNG_HALF, depth); /* boss floors (and the cow pasture) stay open arenas */
   for (const c of dungeonBiomeCache.values()) c.sub.visible = false;
   const cached = dungeonBiomeCache.get(th.name);
   if (cached) { cached.sub.visible = true; dungeonFires = cached.fires; _rescatterDungeon(cached); }
   else _buildDungeonBiome(depth, th);
   if (!d_deeperPortal) { _lightBucket = 'static'; d_deeperPortal = makePortal(0, -50, 0xc04aff); dungeonGroup.add(d_deeperPortal.group); } /* singleton biome-agnostic deeper-descent portal, created once, kept resident */
+  if (!d_cowExit) { _lightBucket = 'static'; d_cowExit = makePortal(0, -50, 0xffd24d); dungeonGroup.add(d_cowExit.group); } /* secret cow level town-return portal (same resident-singleton pattern) */
+  d_cowExit.group.visible = false; /* only revealed on the cow floor once the Cow King dies */
   const pp = dungeonLayout ? dungeonLayout.portal : { x: 0, z: -50 }; /* the way down sits in the BFS-farthest room — the floor has a direction */
   d_deeperPortal.group.position.set(pp.x, 0, pp.z); d_deeperPortal.x = pp.x; d_deeperPortal.z = pp.z;
 }

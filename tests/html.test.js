@@ -39,6 +39,9 @@ test('all import-map URLs are repo-relative, share one vendored version dir, and
   const versions = new Set();
   for (const [spec, url] of Object.entries(map.imports)) {
     assert.ok(!/^(https?:)?\/\//i.test(url), `import "${spec}" points at a remote URL: ${url}`);
+    // Import-map values MUST start with "/", "./", or "../" — a bare path ("vendor/…") is treated as a bare
+    // specifier by the spec, silently resolves to null, and the game fails to boot with a blocked import.
+    assert.ok(/^\.{0,2}\//.test(url), `import "${spec}" is a bare path (needs a ./ prefix to be URL-like): ${url}`);
     const v = url.match(/vendor\/three-(\d+\.\d+\.\d+)\//);
     assert.ok(v, `import "${spec}" is not under a vendor/three-x.y.z/ dir: ${url}`);
     versions.add(v[1]);
