@@ -107,6 +107,15 @@ const PTREE = (() => {
   return { nodes, adj, starts };
 })();
 function defaultSkillRanks() { const o = {}; for (const id in SKILLDEFS) o[id] = (id === 'strike') ? 1 : 0; return o; }
+/* ---- skill-rank spending (v50): actives grow past rank 1 with ability points. Buying rank r+1 costs r points
+   (1+2+3+4 = 10 to max a rank-5 skill — comparable to a full rune tree, so ranks-vs-runes is a real choice).
+   SKILL_COEF.coef(rank) already scales damage with rank, so this re-activates the vestigial maxRank axis. */
+function rankUpCost(cur) { return Math.max(1, cur); }
+function canRankUp(ch, id) {
+  const def = SKILLDEFS[id]; if (!def || def.type !== 'active') return false;
+  const cur = (ch.skills && ch.skills[id]) || 0; if (cur < 1 || cur >= (def.maxRank || 1)) return false;
+  return (ch.abilityPoints || 0) >= rankUpCost(cur);
+}
 // V7 action-bar loadout: 6 fixed slots [LMB basic, RMB, key1..4]. Backfill from currently-unlocked actives;
 // RMB (slot 1) preferentially takes the old activeSkillId so existing characters keep their "selected" skill.
 function defaultLoadout(ch) {

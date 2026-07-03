@@ -21,7 +21,7 @@ function loadAbility() {
   loadFiles(sandbox, [RUNES_FILE]);
   return runSnippet(
     sandbox,
-    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,CLASSES,PTREE,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
+    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,CLASSES,PTREE,rankUpCost,canRankUp,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
   );
 }
 
@@ -197,6 +197,29 @@ test('the barbarian is a complete class: kit, unlock map, creation, loadout', ()
   assert.ok(
     list.includes('rend') && list.includes('shockwave') && list.includes('frenzy'),
     'kit surfaces in the abilities list',
+  );
+});
+
+test('skill-rank spending: cost curve and gates', () => {
+  assert.equal(AB.rankUpCost(1), 1, 'rank 2 costs 1 point');
+  assert.equal(AB.rankUpCost(4), 4, 'rank 5 costs 4 points');
+  let total = 0;
+  for (let r = 1; r < 5; r++) total += AB.rankUpCost(r);
+  assert.equal(total, 10, 'maxing a rank-5 skill costs 10 points — a full rune tree, roughly');
+  // gates: must own the skill, respect maxRank, afford the cost, and only actives rank this way
+  assert.equal(AB.canRankUp({ skills: { fireball: 0 }, abilityPoints: 99 }, 'fireball'), false, 'locked skill');
+  assert.equal(AB.canRankUp({ skills: { fireball: 1 }, abilityPoints: 0 }, 'fireball'), false, 'no points');
+  assert.equal(AB.canRankUp({ skills: { fireball: 1 }, abilityPoints: 1 }, 'fireball'), true, 'rank 2 affordable');
+  assert.equal(AB.canRankUp({ skills: { fireball: 5 }, abilityPoints: 99 }, 'fireball'), false, 'at maxRank');
+  assert.equal(
+    AB.canRankUp({ skills: { cleave: 1 }, abilityPoints: 99 }, 'cleave'),
+    false,
+    'maxRank-1 skills have no rank axis',
+  );
+  assert.equal(
+    AB.canRankUp({ skills: { toughness: 1 }, abilityPoints: 99 }, 'toughness'),
+    false,
+    'passives rank via Techniques, not this path',
   );
 });
 

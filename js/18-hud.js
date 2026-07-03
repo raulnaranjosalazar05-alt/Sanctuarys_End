@@ -62,6 +62,24 @@ function unlockAbility(id) {
   character.skills[id] = 1; character.abilityPoints -= 1;
   recompute(); renderSkillbar(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
 }
+// Spend ability points to raise an active past rank 1 (cost = current rank; capped at the skill's maxRank).
+function rankUpAbility(id) {
+  const def = SKILLDEFS[id]; if (!def || def.type !== 'active') return; const cur = character.skills[id] || 0;
+  if (cur < 1 || cur >= (def.maxRank || 1)) return;
+  const cost = rankUpCost(cur);
+  if ((character.abilityPoints || 0) < cost) { showMsg('Needs ' + cost + ' ability point' + (cost > 1 ? 's' : '')); return; }
+  character.skills[id] = cur + 1; character.abilityPoints -= cost;
+  recompute(); renderSkillbar(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
+}
+// Techniques: the classic trained passives — rankable at a flat 1 point per rank.
+function rankUpTech(id) {
+  const def = SKILLDEFS[id]; if (!def || def.type !== 'passive') return; const cur = character.skills[id] || 0;
+  if (cur >= (def.maxRank || 1)) { showMsg('Already mastered'); return; }
+  if (player.level < (def.req || 1)) { showMsg('Requires level ' + (def.req || 1)); return; }
+  if ((character.abilityPoints || 0) < 1) { showMsg('Not enough ability points'); return; }
+  character.skills[id] = cur + 1; character.abilityPoints -= 1;
+  recompute(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
+}
 // Assign a skill to a bar slot (1..5; slot 0 is the fixed basic attack). Dedupes across slots; RMB (1) drives activeSkillId.
 function setLoadoutSlot(slot, id) {
   if (slot < 1 || slot > 5) return;

@@ -27,10 +27,19 @@ function renderAbilities() {
     else { cls += ' locked'; tag = `<span class="ct">Lv ${req}</span>`; }
     h += `<div class="${cls}" data-skill="${id}">${def.ico} ${def.name}${tag}</div>`;
   }
-  h += '</div><div id="runeWrap"></div>';
+  h += '</div>';
+  // Techniques: the classic trained passives (pre-v49 skill system, still consumed by recompute) — finally rankable again
+  const techs = Object.keys(SKILLDEFS).filter(tid => SKILLDEFS[tid].type === 'passive');
+  if (techs.length) {
+    h += '<div class="ptsNote" style="margin-top:10px">Techniques — trained passives · 1 pt / rank</div><div class="abilPick">';
+    for (const tid of techs) { const td = SKILLDEFS[tid]; const r = character.skills[tid] || 0, max = td.maxRank || 1; const lockd = player.level < (td.req || 1); h += `<div class="abilChip${r >= max ? ' on' : lockd ? ' locked' : r > 0 ? ' on' : ' unlock'}" data-tech="${tid}">${td.ico} ${td.name}<span class="ct">${lockd ? 'Lv ' + td.req : r + '/' + max}</span></div>`; }
+    h += '</div>';
+  }
+  h += '<div id="runeWrap"></div>';
   host.innerHTML = h;
   host.querySelectorAll('.abilSlot').forEach(el => { const i = +el.dataset.slot; el.onclick = () => { if (i === 0) { _runeViewId = 'strike'; } else { _abilSlotSel = i; if (character.loadout[i]) _runeViewId = character.loadout[i]; } renderAbilities(); }; });
-  host.querySelectorAll('.abilChip').forEach(el => { const id = el.dataset.skill; el.onmouseenter = ev => { tooltip.innerHTML = skillTip(id); tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => { if ((character.skills[id] || 0) >= 1) { setLoadoutSlot(_abilSlotSel, id); _runeViewId = id; saveProgress(false); renderAbilities(); } else { unlockAbility(id); } }; });
+  host.querySelectorAll('.abilChip[data-skill]').forEach(el => { const id = el.dataset.skill; el.onmouseenter = ev => { tooltip.innerHTML = skillTip(id); tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => { if ((character.skills[id] || 0) >= 1) { setLoadoutSlot(_abilSlotSel, id); _runeViewId = id; saveProgress(false); renderAbilities(); } else { unlockAbility(id); } }; });
+  host.querySelectorAll('.abilChip[data-tech]').forEach(el => { const tid = el.dataset.tech; const td = SKILLDEFS[tid]; el.onmouseenter = ev => { const r = character.skills[tid] || 0; tooltip.innerHTML = `<div class="tname">${td.ico} ${td.name}</div><div class="tslot">Technique · rank ${r}/${td.maxRank || 1}</div><div style="margin-top:4px">${td.desc}</div><div style="color:#8a7a5a;font-size:11px;margin-top:3px">Click to train — 1 ability point per rank.</div>`; tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => rankUpTech(tid); });
   const rr = document.getElementById('runeReset'); if (rr) rr.onclick = refundRunes;
   renderRuneView();
 }
@@ -39,7 +48,10 @@ function renderRuneView() {
   if (!tree) { wrap.innerHTML = `<div class="abilHint" style="text-align:center;padding:20px">${id === 'strike' ? 'Basic attack — always on Left-click, no runes to spend.' : 'Select a skill to view its rune tree.'}</div>`; return; }
   if ((character.skills[id] || 0) < 1) { wrap.innerHTML = `<div class="abilHint" style="text-align:center;padding:20px">Unlock this ability to spend runes on it.</div>`; return; }
   const def = SKILLDEFS[id]; rT = { x: 0, y: -20, s: 1 };
-  wrap.innerHTML = `<div class="ptsNote" style="margin:8px 0 4px">${def.ico} ${def.name} — rune tree</div><div id="rVp" style="position:relative;width:100%;height:calc(100vh - 400px);min-height:240px;overflow:hidden;border:1px solid #2a2218;border-radius:8px;background:radial-gradient(circle at 50% 45%,#161109,#080604);cursor:grab"><svg id="rSvg" width="100%" height="100%" viewBox="-200 -150 400 380"><defs><filter id="rg" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g id="rG"></g></svg></div>`;
+  const curR = character.skills[id] || 0, maxR = def.maxRank || 1, upCost = rankUpCost(curR);
+  const rankBit = maxR > 1 ? ` <span style="color:#8a7a5a">· Rank ${curR}/${maxR}</span>` + (curR < maxR ? ` <span class="rbtn${(character.abilityPoints || 0) >= upCost ? '' : ' dis'}" id="rankUpBtn" style="margin-left:8px;font-size:11px;padding:2px 8px">Rank up · ${upCost} pt${upCost > 1 ? 's' : ''}</span>` : ' <span style="color:#5ad65a">MAX</span>') : '';
+  wrap.innerHTML = `<div class="ptsNote" style="margin:8px 0 4px">${def.ico} ${def.name} — rune tree${rankBit}</div><div id="rVp" style="position:relative;width:100%;height:calc(100vh - 400px);min-height:240px;overflow:hidden;border:1px solid #2a2218;border-radius:8px;background:radial-gradient(circle at 50% 45%,#161109,#080604);cursor:grab"><svg id="rSvg" width="100%" height="100%" viewBox="-200 -150 400 380"><defs><filter id="rg" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g id="rG"></g></svg></div>`;
+  const rub = document.getElementById('rankUpBtn'); if (rub) rub.onclick = () => rankUpAbility(id);
   buildRuneSvg(id); attachRuneEvents();
 }
 function applyR() { const g = document.getElementById('rG'); if (g) g.setAttribute('transform', `scale(${rT.s}) translate(${rT.x} ${rT.y})`); }
