@@ -79,7 +79,7 @@ addEventListener('keydown', e => {
 /* ---------- casting / combat ---------- */
 const _cd = {};
 const SPELLKINDS = new Set(['fire', 'frost', 'nova', 'chain', 'meteor', 'frostnova', 'arcaneorb', 'blizzard']);
-const SFX_FOR = { cleave: 'melee', multishot: 'melee', whirl: 'melee', groundslam: 'nova', charge: 'melee', warcry: 'level', shadowstep: 'melee', fanofknives: 'melee', arcaneorb: 'fire', blizzard: 'frost', teleportstorm: 'nova', secondwind: 'potion' };
+const SFX_FOR = { cleave: 'melee', multishot: 'melee', whirl: 'melee', groundslam: 'nova', charge: 'melee', warcry: 'level', shadowstep: 'melee', fanofknives: 'melee', arcaneorb: 'fire', blizzard: 'frost', teleportstorm: 'nova', secondwind: 'potion', rend: 'melee', frenzy: 'level', shockwave: 'nova' };
 /* Single source of truth for per-skill damage coefficients — consumed by castActive (the live damage)
    AND by skillDamageInfo (the hover tooltip), so the displayed number can never drift from the dealt number.
    coef(rank) → damage multiplier on player.dmg. school: spell=spellMult·skM, melee=meleeMult·skM, skill=skM only, none=no damage.
@@ -107,4 +107,7 @@ const SKILL_COEF = {
   shadowstep: { coef: r => 1.6 + 0.3 * r, school: 'melee', critMult: true, note: 'guaranteed crit' },
   fanofknives: { coef: r => 0.5 + 0.1 * r, school: 'melee', hits: r => 10 + 2 * r },
   secondwind: { school: 'none', note: 'heals from spent mana' },
+  rend: { coef: r => 1.0 + 0.18 * r, school: 'melee', note: 'cone · bleeds' },
+  frenzy: { school: 'none', note: 'attack speed burst, 8s' },
+  shockwave: { coef: r => 1.1 + 0.2 * r, school: 'melee', note: 'pierces all · knockback' },
 };

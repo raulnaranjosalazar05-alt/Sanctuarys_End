@@ -13,7 +13,7 @@ function update(dt) {
     if (player.stunned) { /* stunned: cannot move or attack */ }
     else if (target) {
       const d = Math.hypot(target.x - player.x, target.z - player.z); const reach = player.range + (target.r || 0); if (d > reach) moveToward(target.x, target.z, dt);
-      else { player.dir = Math.atan2(target.x - player.x, target.z - player.z); if (T - player.attackCd > player.attackRate) { player.attackCd = T; player.swing = T; hitMonster(target, player); } }
+      else { player.dir = Math.atan2(target.x - player.x, target.z - player.z); const ar = player.attackRate * (player.buffs.frenzyUntil > T ? player.buffs.frenzyMul : 1); if (T - player.attackCd > ar) { player.attackCd = T; player.swing = T; hitMonster(target, player); } }
     }
     else if (moveTarget) { moveToward(moveTarget.x, moveTarget.z, dt); if (Math.hypot(moveTarget.x - player.x, moveTarget.z - player.z) < 0.5) moveTarget = null; }
   } else { if (moveTarget) { moveToward(moveTarget.x, moveTarget.z, dt); if (Math.hypot(moveTarget.x - player.x, moveTarget.z - player.z) < 0.5) moveTarget = null; } }

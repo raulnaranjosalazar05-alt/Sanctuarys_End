@@ -15,7 +15,7 @@ const RUNE_FLAG_INFO = {
   doubleCast: ['Echo Strike', 'Unleashes the skill a second time'],
 };
 // Skill kind -> rune archetype (drives which exclusive choices the tree offers).
-const RUNE_KIND = { fire: 'proj', frost: 'proj', arcaneorb: 'proj', nova: 'multiproj', multishot: 'multiproj', volley: 'multiproj', fanofknives: 'multiproj', chain: 'chain', cleave: 'aoe', whirl: 'aoe', leap: 'aoe', meteor: 'aoe', frostnova: 'aoe', groundslam: 'aoe', charge: 'aoe', blizzard: 'aoe', teleportstorm: 'aoe', warcry: 'util', secondwind: 'util', blink: 'util', shadowstep: 'util' };
+const RUNE_KIND = { fire: 'proj', frost: 'proj', arcaneorb: 'proj', nova: 'multiproj', multishot: 'multiproj', volley: 'multiproj', fanofknives: 'multiproj', chain: 'chain', cleave: 'aoe', whirl: 'aoe', leap: 'aoe', meteor: 'aoe', frostnova: 'aoe', groundslam: 'aoe', charge: 'aoe', blizzard: 'aoe', teleportstorm: 'aoe', warcry: 'util', secondwind: 'util', blink: 'util', shadowstep: 'util', rend: 'aoe', frenzy: 'util', shockwave: 'proj' };
 function _runeShape(kc) {
   if (kc === 'proj') return [{ flag: 'explodeOnImpact', mod: { addRadius: 3 } }, { flag: 'lingering' }, { flag: 'pierceAll' }];
   if (kc === 'multiproj') return [{ flag: 'explodeOnImpact', mod: { addRadius: 3 } }, { flag: 'fork' }, { flag: 'freeze' }];

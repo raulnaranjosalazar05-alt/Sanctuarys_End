@@ -22,7 +22,7 @@ function buildHero() {
 const hero = buildHero(); scene.add(hero);
 loadRoster();
 
-const player = { x: 0, z: 0, r: 1.4, speed: 0.32, hp: 100, hpMax: 100, mp: 50, mpMax: 50, level: 1, xp: 0, xpNext: 30, gold: 0, kills: 0, dmg: 14, attackCd: 0, attackRate: 420, range: 3.2, potions: 4, dir: 0, swing: 0, bob: 0, armor: 0, crit: 0.05, mpRegen: 0.004, chillUntil: 0, effects: { lifesteal: 0, thorns: 0, allskills: 0, movespeed: 0, critdmg: false, pierce: 0, dodge: 0, flatDR: 0, lifeOnHit: 0 }, goldFind: 0, cdr: 0, meleeMult: 1, spellMult: 1, buffs: { cryUntil: 0, cryMul: 1, cryDR: 0, empUntil: 0, empMul: 1, fleetUntil: 0, fleetMul: 1, stoneUntil: 0, greedUntil: 0, frenzyUntil: 0 }, _lastHit: '' };
+const player = { x: 0, z: 0, r: 1.4, speed: 0.32, hp: 100, hpMax: 100, mp: 50, mpMax: 50, level: 1, xp: 0, xpNext: 30, gold: 0, kills: 0, dmg: 14, attackCd: 0, attackRate: 420, range: 3.2, potions: 4, dir: 0, swing: 0, bob: 0, armor: 0, crit: 0.05, mpRegen: 0.004, chillUntil: 0, effects: { lifesteal: 0, thorns: 0, allskills: 0, movespeed: 0, critdmg: false, pierce: 0, dodge: 0, flatDR: 0, lifeOnHit: 0 }, goldFind: 0, cdr: 0, meleeMult: 1, spellMult: 1, buffs: { cryUntil: 0, cryMul: 1, cryDR: 0, empUntil: 0, empMul: 1, fleetUntil: 0, fleetMul: 1, stoneUntil: 0, greedUntil: 0, frenzyUntil: 0, frenzyMul: 1 }, _lastHit: '' };
 const empowerMul = () => (player.buffs.empUntil > now() ? player.buffs.empMul : 1); // shrine "Empowered" damage buff (timer-read, like War Cry)
 // Effective skill cooldown after Cooldown Reduction. MUST be used by both the cast gate and the cooldown
 // swirl render, or the on-screen timer desyncs from when the skill actually re-fires.

@@ -11,7 +11,7 @@
 // --- enumerations (mirror the const literals / key sets in game.js) ----------------------------------
 type Slot = 'weapon' | 'offhand' | 'helm' | 'armor' | 'gloves' | 'boots' | 'ring' | 'amulet';
 type Rarity = 'common' | 'magic' | 'rare' | 'set' | 'unique';
-type ClassId = 'warrior' | 'mage' | 'rogue';
+type ClassId = 'warrior' | 'mage' | 'rogue' | 'barbarian';
 type Difficulty = 'Normal' | 'Hard' | 'Hell' | 'Inferno';
 
 /** Keys of the AFFIXES table (game.js). */

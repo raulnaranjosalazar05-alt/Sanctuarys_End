@@ -21,7 +21,7 @@ function loadAbility() {
   loadFiles(sandbox, [RUNES_FILE]);
   return runSnippet(
     sandbox,
-    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
+    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,CLASSES,PTREE,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
   );
 }
 
@@ -176,6 +176,50 @@ test('the side notables (vampiric / knockback / chill-burst) hang off the utilit
 
 test('Ground Slam carries the stun on-hit tag', () => {
   assert.equal(AB.SKILLDEFS.groundslam.onHit, 'stun', 'groundslam is the player stun source');
+});
+
+test('the barbarian is a complete class: kit, unlock map, creation, loadout', () => {
+  assert.ok(AB.CLASSES.barbarian, 'CLASSES.barbarian exists');
+  const map = AB.CLASS_ACTIVES.barbarian;
+  assert.ok(map, 'barbarian unlock map exists');
+  for (const id of Object.keys(map)) assert.ok(AB.SKILLDEFS[id], `barbarian unlock "${id}" is not a skill`);
+  for (const id of ['rend', 'frenzy', 'shockwave']) {
+    assert.ok(AB.SKILLDEFS[id], `new active ${id} defined`);
+    assert.ok(AB.ACTIVE_ORDER.includes(id), `${id} is in ACTIVE_ORDER`);
+    assert.ok(AB.SKILL_RUNES[id], `${id} has a rune tree`);
+  }
+  const c = AB.SAVE.newCharacter('Grom', 'barbarian');
+  assert.equal(c.class, 'barbarian');
+  assert.equal(c.passives[0], AB.PTREE.starts.barbarian, 'starts in the fury sector');
+  assert.equal(c.loadout[1], 'rend', 'granted skill lands on the RMB slot');
+  AB.setChar({ class: 'barbarian' });
+  const list = AB.classAbilities();
+  assert.ok(
+    list.includes('rend') && list.includes('shockwave') && list.includes('frenzy'),
+    'kit surfaces in the abilities list',
+  );
+});
+
+test('every keystone in the forest is reachable from every class start', () => {
+  const { nodes, adj, starts } = AB.PTREE;
+  for (const cls in starts) {
+    const start = starts[cls];
+    assert.ok(nodes[start], `${cls} start node missing`);
+    const seen = new Set([start]);
+    const q = [start];
+    while (q.length) {
+      const n = q.shift();
+      for (const nb of adj[n] || []) {
+        if (!seen.has(nb)) {
+          seen.add(nb);
+          q.push(nb);
+        }
+      }
+    }
+    for (const id in nodes) {
+      if (nodes[id].type === 'keystone') assert.ok(seen.has(id), `keystone ${id} unreachable from ${cls} start`);
+    }
+  }
 });
 
 test('canAllocRune enforces connectivity, exclusivity, and level gates', () => {

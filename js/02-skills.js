@@ -33,18 +33,24 @@ const SKILLDEFS = {
   shadowstep: { name: 'Shadow Step', ico: '🗡️', type: 'active', kind: 'shadowstep', cost: 12, cd: 1100, maxRank: 5, req: 1, granted: false, desc: 'Blink to the nearest foe and strike for a guaranteed crit. Rank boosts damage.' },
   fanofknives: { name: 'Fan of Knives', ico: '🔪', type: 'active', kind: 'fanofknives', elem: 'phys', onHit: 'bleed', cost: 16, cd: 1200, maxRank: 5, req: 1, granted: false, desc: 'Hurl daggers in every direction, making foes bleed. Rank boosts damage.' },
   secondwind: { name: 'Second Wind', ico: '💗', type: 'active', kind: 'secondwind', cost: 0, cd: 6000, maxRank: 5, req: 1, granted: false, desc: 'Spend all mana to heal for a share of it. Rank boosts the conversion.' },
+  // ---- barbarian kit (v50) ----
+  rend: { name: 'Rend', ico: '🩸', type: 'active', kind: 'rend', elem: 'phys', onHit: 'bleed', cost: 6, cd: 500, maxRank: 5, req: 1, granted: false, desc: 'Tear a wide cone of flesh — foes bleed. Rank boosts damage.' },
+  frenzy: { name: 'Frenzy', ico: '💢', type: 'active', kind: 'frenzy', cost: 12, cd: 8000, maxRank: 5, req: 1, granted: false, desc: 'Work into a killing rhythm: attack much faster for 8s. Rank boosts the speed.' },
+  shockwave: { name: 'Shockwave', ico: '💥', type: 'active', kind: 'shockwave', elem: 'phys', cost: 16, cd: 1300, maxRank: 5, req: 1, granted: false, desc: 'Stamp a rolling wave of force that pierces everything and knocks foes back. Rank boosts damage.' },
 };
-const ACTIVE_ORDER = ['strike', 'cleave', 'whirlwind', 'leap', 'groundslam', 'charge', 'warcry', 'multishot', 'volley', 'fanofknives', 'shadowstep', 'blink', 'teleportstorm', 'fireball', 'frost', 'frostnova', 'nova', 'chain', 'meteor', 'arcaneorb', 'blizzard', 'secondwind'];
+const ACTIVE_ORDER = ['strike', 'cleave', 'rend', 'whirlwind', 'leap', 'groundslam', 'charge', 'warcry', 'frenzy', 'shockwave', 'multishot', 'volley', 'fanofknives', 'shadowstep', 'blink', 'teleportstorm', 'fireball', 'frost', 'frostnova', 'nova', 'chain', 'meteor', 'arcaneorb', 'blizzard', 'secondwind'];
 const CLASSES = {
   warrior: { name: 'Warrior', col: 0x9a3020, base: { str: 18, dex: 10, vit: 16, eng: 6 }, grow: { hp: 24, mp: 5, dmg: 4 }, dmgMult: 1.15, granted: ['cleave'], blurb: 'Brawler — high life, strong melee, Cleave.' },
   mage: { name: 'Mage', col: 0x2a3aaa, base: { str: 8, dex: 10, vit: 10, eng: 20 }, grow: { hp: 14, mp: 12, dmg: 2 }, spellMult: 1.3, granted: ['fireball', 'frost'], blurb: 'Glass cannon — spells hit hard, low life.' },
   rogue: { name: 'Rogue', col: 0x2a7a3a, base: { str: 12, dex: 20, vit: 11, eng: 9 }, grow: { hp: 18, mp: 7, dmg: 3 }, critBonus: 0.08, granted: ['multishot'], blurb: 'Swift — crit & speed, throws daggers.' },
+  barbarian: { name: 'Barbarian', col: 0x8a5a20, base: { str: 20, dex: 12, vit: 14, eng: 4 }, grow: { hp: 22, mp: 4, dmg: 5 }, dmgMult: 1.1, critBonus: 0.04, granted: ['rend'], blurb: 'Fury incarnate — fast heavy melee, bleeds & shockwaves.' },
 };
 // active skills unlock automatically by level per class; the forest below holds passive power
 const CLASS_ACTIVES = {
   warrior: { strike: 1, cleave: 1, groundslam: 3, charge: 5, whirlwind: 6, warcry: 9, leap: 10, secondwind: 12 },
   mage: { strike: 1, fireball: 1, frost: 2, frostnova: 4, arcaneorb: 4, nova: 6, blink: 8, chain: 10, blizzard: 13, meteor: 14 },
   rogue: { strike: 1, multishot: 1, shadowstep: 5, volley: 6, fanofknives: 7, blink: 8, teleportstorm: 9, secondwind: 12 },
+  barbarian: { strike: 1, rend: 1, groundslam: 2, frenzy: 4, charge: 5, shockwave: 7, whirlwind: 8, warcry: 10, leap: 11, secondwind: 12 },
 };
 // Auto-grant only the level-1 starting kit. Higher abilities are unlocked by spending an ability point (see unlockAbility).
 function syncActives() { const m = CLASS_ACTIVES[character.class] || CLASS_ACTIVES.warrior; for (const id in m) { if (m[id] <= 1 && (character.skills[id] || 0) < 1) character.skills[id] = 1; } }
@@ -56,12 +62,15 @@ const PTREE = (() => {
   const N = (id, x, y, type, mods, label) => { nodes[id] = { id, x, y, type: type || 'minor', mods: mods || {}, label: label || '' }; adj[id] = adj[id] || []; };
   const L = (a, b) => { (adj[a] = adj[a] || []); (adj[b] = adj[b] || []); if (!adj[a].includes(b)) adj[a].push(b); if (!adj[b].includes(a)) adj[b].push(a); };
   N('hub', 0, 0, 'minor', {}, 'Crossroads');
+  /* v50: four sectors at 45°/135°/225°/315° (the fury sector joined for the barbarian). All pre-v50 node ids
+     and their adjacency survive — only x/y positions moved — so saved passives arrays stay valid. */
   const sec = {
-    str: { ang: Math.PI * 0.78, minors: [{ str: 4 }, { vit: 6 }, { dmg: 2 }, { armor: 6 }], notable: { str: 14, hpPct: 8, meleePct: 8 }, nl: 'Battle Hardened', key: { armorPct: 25, hpPct: 15 }, kl: 'Juggernaut' },
-    dex: { ang: Math.PI * 0.22, minors: [{ dex: 4 }, { crit: 2 }, { dmg: 2 }, { vit: 4 }], notable: { dex: 14, crit: 6 }, nl: 'Precision', key: { crit: 14, pierce: 1 }, kl: 'Deadeye' },
-    int: { ang: -Math.PI * 0.5, minors: [{ eng: 4 }, { mp: 12 }, { spellPct: 4 }, { crit: 1 }], notable: { eng: 14, spellPct: 12, mp: 20 }, nl: 'Spell Weaver', key: { allskills: 1, spellPct: 20 }, kl: 'Archmage' },
+    str: { ang: Math.PI * 0.75, minors: [{ str: 4 }, { vit: 6 }, { dmg: 2 }, { armor: 6 }], notable: { str: 14, hpPct: 8, meleePct: 8 }, nl: 'Battle Hardened', key: { armorPct: 25, hpPct: 15 }, kl: 'Juggernaut' },
+    dex: { ang: Math.PI * 0.25, minors: [{ dex: 4 }, { crit: 2 }, { dmg: 2 }, { vit: 4 }], notable: { dex: 14, crit: 6 }, nl: 'Precision', key: { crit: 14, pierce: 1 }, kl: 'Deadeye' },
+    int: { ang: -Math.PI * 0.75, minors: [{ eng: 4 }, { mp: 12 }, { spellPct: 4 }, { crit: 1 }], notable: { eng: 14, spellPct: 12, mp: 20 }, nl: 'Spell Weaver', key: { allskills: 1, spellPct: 20 }, kl: 'Archmage' },
+    fury: { ang: -Math.PI * 0.25, minors: [{ str: 3, dex: 3 }, { hp: 14 }, { crit: 2 }, { dmg: 3 }], notable: { str: 10, dex: 10, meleePct: 10 }, nl: 'Blood Rage', key: { haste: 0.12, meleePct: 15 }, kl: 'Berserker' },
   };
-  const starts = { warrior: 'start_str', mage: 'start_int', rogue: 'start_dex' };
+  const starts = { warrior: 'start_str', mage: 'start_int', rogue: 'start_dex', barbarian: 'start_fury' };
   for (const k in sec) {
     const s = sec[k], ga = s.ang;
     N('gw_' + k, Math.cos(ga) * 70, Math.sin(ga) * 70, 'minor', s.minors[0], ''); L('hub', 'gw_' + k);
@@ -75,9 +84,9 @@ const PTREE = (() => {
     });
     for (const sg of [-1, 1]) { let p2 = 'gw_' + k; for (let j = 0; j < 3; j++) { const ba = ga + sg * 0.66, R2 = 130 + j * 72, x = Math.cos(ba) * R2, y = Math.sin(ba) * R2, id = 'br_' + k + '_' + (sg > 0 ? 'p' : 'n') + '_' + j; N(id, x, y, 'minor', j === 1 ? { vit: 6 } : s.minors[j % 4], ''); L(p2, id); p2 = id; } }
   }
-  L('gw_str', 'gw_int'); L('gw_int', 'gw_dex'); L('gw_dex', 'gw_str');
+  L('gw_str', 'gw_int'); L('gw_int', 'gw_dex'); L('gw_dex', 'gw_str'); L('gw_dex', 'gw_fury'); L('gw_fury', 'gw_int'); /* pre-v50 triangle kept (save adjacency) + fury ring links */
   // ---- outer ring of powerful keystones + inter-sector clusters ----
-  const A = { str: Math.PI * 0.78, dex: Math.PI * 0.22, int: -Math.PI * 0.5 };
+  const A = { str: Math.PI * 0.75, dex: Math.PI * 0.25, int: -Math.PI * 0.75, fury: -Math.PI * 0.25 };
   const AK = (id, ang, R, type, mods, label) => { nodes[id] = { id, x: Math.cos(ang) * R, y: Math.sin(ang) * R, type, mods, label }; adj[id] = adj[id] || []; };
   AK('ks_titan', A.str + 0.24, 440, 'keystone', { hpPct: 35, armorPct: 25, movespeed: -0.12 }, 'Titan'); L('ax_str_3', 'ks_titan');
   AK('ks_blood', A.str - 0.24, 440, 'keystone', { lifesteal: 0.15, meleePct: 12 }, 'Bloodthirst'); L('ax_str_3', 'ks_blood');
@@ -87,10 +96,14 @@ const PTREE = (() => {
   AK('ks_glass', A.int - 0.24, 440, 'keystone', { dmgPct: 55, hpPct: -40 }, 'Glass Cannon'); L('ax_int_3', 'ks_glass');
   AK('nt_top', Math.PI * 0.5, 250, 'notable', { meleePct: 10, spellPct: 10, crit: 4 }, 'Warmonger'); L('sd_str_2_n', 'nt_top'); L('sd_dex_2_p', 'nt_top');
   AK('ks_chain', Math.PI * 0.5, 360, 'keystone', { deathnova: 0.9 }, 'Chain Reaction'); L('nt_top', 'ks_chain');
-  AK('nt_right', -Math.PI * 0.13, 250, 'notable', { dex: 10, eng: 10, crit: 3 }, 'Trickster'); L('sd_dex_2_n', 'nt_right'); L('sd_int_2_p', 'nt_right');
-  AK('ks_aegis', -Math.PI * 0.13, 360, 'keystone', { manaShield: 0.4, mp: 50 }, 'Aegis'); L('nt_right', 'ks_aegis');
-  AK('nt_left', Math.PI * 1.13, 250, 'notable', { str: 10, vit: 10, armor: 8 }, 'Bulwark'); L('sd_str_2_p', 'nt_left'); L('sd_int_2_n', 'nt_left');
-  AK('ks_frost', Math.PI * 1.13, 360, 'keystone', { chillaura: true, spellPct: 8, eng: 8 }, 'Frostbite'); L('nt_left', 'ks_frost');
+  AK('nt_right', 0, 250, 'notable', { dex: 10, eng: 10, crit: 3 }, 'Trickster'); L('sd_dex_2_n', 'nt_right'); L('sd_fury_2_p', 'nt_right'); /* v50: re-anchored dex↔fury (was dex↔int before the fury sector existed) */
+  AK('ks_aegis', 0, 360, 'keystone', { manaShield: 0.4, mp: 50 }, 'Aegis'); L('nt_right', 'ks_aegis');
+  AK('nt_left', Math.PI, 250, 'notable', { str: 10, vit: 10, armor: 8 }, 'Bulwark'); L('sd_str_2_p', 'nt_left'); L('sd_int_2_n', 'nt_left');
+  AK('ks_frost', Math.PI, 360, 'keystone', { chillaura: true, spellPct: 8, eng: 8 }, 'Frostbite'); L('nt_left', 'ks_frost');
+  AK('nt_bottom', -Math.PI * 0.5, 250, 'notable', { vit: 10, str: 6, dex: 6 }, 'Warbound'); L('sd_fury_2_n', 'nt_bottom'); L('sd_int_2_p', 'nt_bottom');
+  AK('ks_ward', -Math.PI * 0.5, 360, 'keystone', { thorns: 18, hpPct: 12 }, 'Retribution'); L('nt_bottom', 'ks_ward');
+  AK('ks_rage', A.fury + 0.24, 440, 'keystone', { haste: 0.2, meleePct: 12 }, 'Rampage'); L('ax_fury_3', 'ks_rage');
+  AK('ks_stone', A.fury - 0.24, 440, 'keystone', { thorns: 24, armorPct: 20 }, 'Stoneform'); L('ax_fury_3', 'ks_stone');
   return { nodes, adj, starts };
 })();
 function defaultSkillRanks() { const o = {}; for (const id in SKILLDEFS) o[id] = (id === 'strike') ? 1 : 0; return o; }

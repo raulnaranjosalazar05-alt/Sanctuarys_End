@@ -36,7 +36,7 @@ const WEAPON_BASES = {
   caster: ['Staff', 'Wand', 'Scepter', 'Rod', 'Spire', 'Branch'],
   ranged: ['Bow', 'Crossbow', 'Longbow', 'Shortbow', 'Recurve', 'Hunting Bow'],
 };
-const CLASS_WEAPON_FAMILY = { warrior: 'melee', mage: 'caster', rogue: 'ranged' };
+const CLASS_WEAPON_FAMILY = { warrior: 'melee', mage: 'caster', rogue: 'ranged', barbarian: 'melee' };
 function pickWeaponBase() { return choice(WEAPON_BASES[CLASS_WEAPON_FAMILY[(typeof character !== 'undefined' && character && character.class)] || 'melee']); }
 /* ---- offhands: class-flavored kinds. Shields roll armor + Block %, tomes/quivers roll a guaranteed
    kit affix instead of a base stat. Kind stored on the item (it.ohKind) so folding never re-derives it. */
