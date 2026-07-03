@@ -1,6 +1,6 @@
 function castActive(id, aim, isEcho) {
   const def = SKILLDEFS[id]; let rank = character.skills[id]; if (!def || rank < 1) return; if (_SPK.on) _ev('cast:' + id); rank += (player.effects.allskills || 0); const R = resolveSkill(id);
-  const t = now(); const cost = Math.round(def.cost * R.costMult); if (!isEcho) { if (t - (_cd[id] || -9999) < skillCd(def, id)) return; if (player.mp < cost) { floatText('No mana', player.x, player.z, '#88aaff'); return; } _cd[id] = t; player.mp -= cost; updateGlobes(); sfx(SFX_FOR[def.kind] || def.kind); }
+  const t = now(); const cost = Math.round(def.cost * R.costMult); if (!isEcho) { if (t - (_cd[id] || -9999) < skillCd(def, id)) return; if (player.mp < cost) { floatText('No mana', player.x, player.z, '#88aaff'); return; } _cd[id] = t; player.mp -= cost; _ev('cast'); updateGlobes(); sfx(SFX_FOR[def.kind] || def.kind); }
   const ang = Math.atan2(aim.x - player.x, aim.z - player.z) + (isEcho ? rand(-0.12, 0.12) : 0); player.dir = ang; player.swing = now(); const fwd = { x: Math.sin(ang), z: Math.cos(ang) }; const skM = (player.skillMult || 1) * ((id === character.activeSkillId) ? (player.activeSkillDmg || 1) : 1); const eb = empowerMul(); const sm = player.spellMult * skM * eb, mm = player.meleeMult * skM * eb;
   const _C = SKILL_COEF[def.kind]; const cf = ((_C && _C.coef) ? _C.coef(rank) : 1) * R.dmgMult;
   if (def.kind === 'fire') applyRuneProj(spawnProj(player.x, player.z, fwd, 0.9, player.dmg * cf * sm, 'fire', 120, def.onHit), R);
@@ -15,7 +15,7 @@ function castActive(id, aim, isEcho) {
   else if (def.kind === 'blink') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 22); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0x6a8aff); }
   else if (def.kind === 'meteor') { spawnExplosion(aim.x, aim.z, 0xff5020); for (const m of [...monsters]) { if (Math.hypot(m.x - aim.x, m.z - aim.z) < 7 + R.addRadius) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'fire'); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, dd); } } }
   else if (def.kind === 'frostnova') { spawnExplosion(player.x, player.z, 0x6ad8ff); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 9 + R.addRadius) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'frost'); if (m.hp > 0) { m.slow = 120 + 30 * rank + R.addSlow; if (def.onHit) applyOnHit(m, def.onHit, dd); } } } }
-  else if (def.kind === 'groundslam') { spawnExplosion(player.x + fwd.x * 3, player.z + fwd.z * 3, 0xc4a050); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 8 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.0) { meleeDamage(m, cf * skM, player); m.slow = Math.max(m.slow, 120); const kb = Math.min(4, 9 - d); m.x += Math.sin(ma) * kb; m.z += Math.cos(ma) * kb; } } } }
+  else if (def.kind === 'groundslam') { spawnExplosion(player.x + fwd.x * 3, player.z + fwd.z * 3, 0xc4a050); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 8 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.0) { meleeDamage(m, cf * skM, player); if (m.hp > 0) { m.slow = Math.max(m.slow, 120); const kb = Math.min(4, 9 - d); m.x += Math.sin(ma) * kb; m.z += Math.cos(ma) * kb; if (def.onHit) applyOnHit(m, def.onHit, 0); } } } } }
   else if (def.kind === 'charge') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 20); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0xd8c060); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 5 + R.addRadius) { meleeDamage(m, cf * skM, player); m.slow = Math.max(m.slow, 90); } } }
   else if (def.kind === 'warcry') { player.buffs.cryUntil = now() + 8000 + R.addDuration; player.buffs.cryMul = 1.2 + 0.06 * rank; player.buffs.cryDR = Math.min(0.4, 0.1 + 0.04 * rank); spawnExplosion(player.x, player.z, 0xffcf3a); floatText('War Cry!', player.x, player.z - 1, '#ffcf3a'); }
   else if (def.kind === 'arcaneorb') { const p = spawnProj(player.x, player.z, fwd, 0.45, player.dmg * cf * sm, 'fire'); p.pierce = 3; if (!p.hit) p.hit = new Set(); p.slow = 60; p.mesh.scale.setScalar(0.85); applyRuneProj(p, R); }
@@ -24,6 +24,9 @@ function castActive(id, aim, isEcho) {
   else if (def.kind === 'shadowstep') { let best = null, bd = 1e9; for (const m of monsters) { const d = Math.hypot(m.x - player.x, m.z - player.z); if (d < bd) { bd = d; best = m; } } if (best) { const ba = Math.atan2(best.x - player.x, best.z - player.z); player.x = best.x - Math.sin(ba) * 2.2; player.z = best.z - Math.cos(ba) * 2.2; clampToZone(); player.dir = ba; spawnExplosion(player.x, player.z, 0x6a3a8a); const dmg = player.dmg * player.meleeMult * skM * cf * (player.effects.critdmg ? 3 : 2); best.hp -= dmg; best.flash = 8; floatText('✸' + Math.round(dmg), best.x, best.z, '#ffd24d'); if (player.effects.lifesteal > 0) player.hp = Math.min(player.hpMax, player.hp + dmg * player.effects.lifesteal); if (best.hp <= 0) killMonster(best); } else floatText('No target', player.x, player.z, '#aaa'); }
   else if (def.kind === 'fanofknives') { const cnt = 10 + 2 * rank + R.addProj; for (let k = 0; k < cnt; k++) { const a = k / cnt * Math.PI * 2; applyRuneProj(spawnProj(player.x, player.z, { x: Math.sin(a), z: Math.cos(a) }, 1.0, player.dmg * cf * mm, 'phys', 120, def.onHit), R); } }
   else if (def.kind === 'secondwind') { const m0 = player.mp; player.mp = 0; const heal = Math.round(m0 * (0.6 + 0.12 * rank)); player.hp = Math.min(player.hpMax, player.hp + heal); floatText('+' + heal, player.x, player.z, '#7fd07f'); spawnExplosion(player.x, player.z, 0x6ad88a); updateGlobes(); }
+  else if (def.kind === 'rend') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 6.5 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.1) { meleeDamage(m, cf * skM, player); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, player.dmg * cf * skM); } } } }
+  else if (def.kind === 'frenzy') { player.buffs.frenzyUntil = now() + 8000 + R.addDuration; player.buffs.frenzyMul = Math.max(0.5, 0.8 - 0.05 * rank); spawnExplosion(player.x, player.z, 0xff5040); floatText('Frenzy!', player.x, player.z - 1, '#ff8a6a'); }
+  else if (def.kind === 'shockwave') { const p = spawnProj(player.x, player.z, fwd, 0.55, player.dmg * cf * mm, 'phys', 90, def.onHit); p.pierce = 999; if (!p.hit) p.hit = new Set(); p.knockback = true; p.mesh.scale.set(2.2, 0.6, 2.2); applyRuneProj(p, R); }
   if (!isEcho && player.effects.echo && SPELLKINDS.has(def.kind)) setTimeout(() => castActive(id, aim, true), 90);
   if (!isEcho && R.flags.has('doubleCast')) setTimeout(() => castActive(id, aim, true), 80);
   renderSkillbar();
@@ -42,7 +45,9 @@ function makeOrb(x, y, z, hex, r) { const m = poolMesh(_orbGeo, projMat(hex)); m
    ⇒ GC pause) and the game events that fired that frame (loot/kill/cast/new-monster-type) — so a real-play hitch can
    be attributed to GC vs first-render-compile vs a specific event. Drive via window.__spikeStart()/__spikeStop(). */
 const _SPK = { on: false, thresh: 40, spikes: [], ev: {}, rates: {}, seen: new Set(), lcSeen: new Set(), t0: 0 };
-function _ev(n) { if (!_SPK.on) return; _SPK.ev[n] = (_SPK.ev[n] || 0) + 1; _SPK.rates[n] = (_SPK.rates[n] || 0) + 1; }
+/* _ev is the game's event bus: kill/killElite/killBoss, loot:*, cast, levelup, float. It fires unconditionally
+   (hot path = one property read) so the achievement Journal can watch it; the spike-profiler tally stays gated. */
+function _ev(n) { if (ACH_EV_INDEX[n]) achBump(n); if (!_SPK.on) return; _SPK.ev[n] = (_SPK.ev[n] || 0) + 1; _SPK.rates[n] = (_SPK.rates[n] || 0) + 1; }
 function spawnProj(x, z, dir, sp, dmg, kind, slow, onHit) { const col = kind === 'frost' ? 0x9fe8ff : kind === 'poison' ? 0x8fe07a : (kind === 'phys' ? 0xd8d8e8 : 0xff8a3a); const mesh = makeOrb(x, 2, z, col, 0.5); scene.add(mesh); const pierce = ((kind === 'phys' || kind === 'poison') ? (player.effects.pierce || 0) : 0); const p = { x, z, vx: dir.x * sp, vz: dir.z * sp, dmg, kind, life: 120, mesh, slow: slow || 120, onHit: onHit || null, hit: pierce > 0 ? new Set() : null, pierce }; projectiles.push(p); return p; }
 function castChain(rank, skM, R) {
   skM = skM || 1; R = R || resolveSkill('chain'); let dmg = player.dmg * SKILL_COEF.chain.coef(rank) * skM * R.dmgMult; const jumps = 2 + rank + R.addProj; const hitSet = new Set(); let cur = { x: player.x, z: player.z }; const pts = [new THREE.Vector3(player.x, 2.6, player.z)];
@@ -51,7 +56,7 @@ function castChain(rank, skM, R) {
 }
 function spawnLightning(pts) { const ln = poolLine(), arr = ln.geometry.attributes.position.array, n = Math.min(pts.length, _LINE_PTS); for (let i = 0; i < n; i++) { arr[i * 3] = pts[i].x; arr[i * 3 + 1] = pts[i].y; arr[i * 3 + 2] = pts[i].z; } ln.geometry.setDrawRange(0, n); ln.geometry.attributes.position.needsUpdate = true; ln.geometry.boundingSphere = null; scene.add(ln); pushFx({ mesh: ln, life: 14 }); } /* pooled Line: own material (per-instance opacity fade), fixed max-point buffer reused via draw-range — was a fresh BufferGeometry+material every cast */
 /* shared FX/loot geometry+material caches (avoid per-event allocation + GPU-upload spikes) */
-const _LGEO = { gold: new THREE.SphereGeometry(0.4, 8, 8), pot: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), item: new THREE.OctahedronGeometry(0.55, 0), ring: new THREE.RingGeometry(0.85, 1.2, 28), expl: new THREE.SphereGeometry(6, 16, 12), spark: new THREE.TetrahedronGeometry(0.22, 0), flash: new THREE.SphereGeometry(0.5, 8, 8) };
+const _LGEO = { gold: new THREE.SphereGeometry(0.4, 8, 8), pot: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), item: new THREE.OctahedronGeometry(0.55, 0), ring: new THREE.RingGeometry(0.85, 1.2, 28), expl: new THREE.SphereGeometry(6, 16, 12), spark: new THREE.TetrahedronGeometry(0.22, 0), flash: new THREE.SphereGeometry(0.5, 8, 8), wall: new THREE.BoxGeometry(1.7, 2.2, 1.7) };
 const _beamGeoC = {}; function _beamGeo(h, w) { const k = h + 'x' + w; return _beamGeoC[k] || (_beamGeoC[k] = new THREE.CylinderGeometry(w * 0.45, w, h, 10, 1, true)); }
 const _lootMatC = {}; function _lootMat(kind, col) { const k = kind + col; if (_lootMatC[k]) return _lootMatC[k]; let m; if (kind === 'gold') m = new THREE.MeshStandardMaterial({ color: 0xffd24d, emissive: 0x3a2900, emissiveIntensity: 0.5, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.3 }); else if (kind === 'potion') m = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xff3a3a, emissive: 0x4a0000 }); else if (kind === 'manapotion') m = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0x3a5aff, emissive: 0x00104a }); else m = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: .45, metalness: 0.6, roughness: 0.35, envMapIntensity: 1.2 }); return _lootMatC[k] = m; }
 const _basicMatC = {}; function _basicMat(col, opacity) { const k = col + '_' + opacity; return _basicMatC[k] || (_basicMatC[k] = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); }
@@ -63,6 +68,25 @@ function spawnSparks(x, z, col, count) {
 }
 function impactFlash(x, z, col) { if (SAVE._data.settings.vfx === false) return; const m = poolMesh(_LGEO.flash, _basicMat(col, 0.7)); m.position.set(x, 1.6, z); const s0 = 1.7; m.scale.setScalar(s0); scene.add(m); pushFx({ mesh: m, life: 9, life0: 9, scale0: s0 }); }
 const _explMatC = {}; function spawnExplosion(x, z, col) { const mat = _explMatC[col] || (_explMatC[col] = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5, wireframe: true })); const m = poolMesh(_LGEO.expl, mat); m.position.set(x, 1.5, z); scene.add(m); pushFx({ mesh: m, life: 14 }); } /* ponytail: per-color wireframe mat cached (was a per-call alloc + a noDispose leak). Two same-color explosions overlapping share the opacity fade — negligible/rare. */
+/* ---------- ground hazards, telegraphs & temporary walls (shared by boss abilities + elite affixes) ----------
+   hazards damage the PLAYER while stood in them (spawnLingerField is the monster-damaging counterpart — never
+   route enemy ground effects through it); telegraphs are pooled warning rings that grow through their windup
+   then run a callback, giving every big hit a dodge window; temp walls are short-lived collider circles with
+   an energy-block visual. All are ticked by tickFieldFx() in update() and torn down by clearField(). */
+const hazards = [], telegraphs = [], tempWalls = [];
+function spawnTelegraph(x, z, r, ms, col, cb) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.55)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.22, z); m.scale.setScalar(r * 0.3); scene.add(m); telegraphs.push({ x, z, r, t: ms, t0: ms, mesh: m, cb }); }
+function spawnHazard(x, z, r, life, dps, col, src) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m, src: src || 'burning ground' }); }
+function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); tempWalls.push({ col, life, mesh: m }); }
+function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); return; } } }
+function tickFieldFx(dt) {
+  for (const tg of telegraphs) { tg.t -= dt; const p = 1 - Math.max(0, tg.t / tg.t0); tg.mesh.scale.setScalar(tg.r * (0.3 + 0.7 * p) * 0.85); if (tg.t <= 0) { tg.dead = true; removeMesh(tg.mesh); if (tg.cb) tg.cb(); } }
+  _compact(telegraphs, _deadFlag, null);
+  for (const h of hazards) { h.life -= dt; h.tk -= dt; if (h.tk <= 0 && Math.hypot(player.x - h.x, player.z - h.z) < h.r) { h.tk = 250; damagePlayer(h.dps * 0.25, null, h.src); } if (h.life <= 0) { h.dead = true; removeMesh(h.mesh); } }
+  _compact(hazards, _deadFlag, null);
+  for (const w of tempWalls) { w.life -= dt; if (w.life <= 0) { w.dead = true; _dropWallCol(w.col); removeMesh(w.mesh); } }
+  _compact(tempWalls, _deadFlag, null);
+}
+function clearFieldFx() { for (const tg of telegraphs) removeMesh(tg.mesh); telegraphs.length = 0; for (const h of hazards) removeMesh(h.mesh); hazards.length = 0; for (const w of tempWalls) { _dropWallCol(w.col); removeMesh(w.mesh); } tempWalls.length = 0; }
 const POTION_PCT = 0.40, POTION_TIER_PCT = 0.05;
 function potionHealAmt() { return Math.round(player.hpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
 function potionManaAmt() { return Math.round(player.mpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
@@ -106,7 +130,7 @@ function tickStatuses(ent, dt, isPlayer) {
     else if (s.type === 'stun') ent.stunned = true;
   }
   if (dot > 0) {
-    if (isPlayer) { if (!_perfGod) player.hp -= dot; if (player.hp < 0) player.hp = 0; updateGlobes(); if (player.hp <= 0 && running && !_perfGod) { sfx('die'); gameOver(); } }
+    if (isPlayer) { if (!_perfGod) player.hp -= dot; if (player.hp < 0) player.hp = 0; updateGlobes(); if (player.hp <= 0 && running && !_perfGod) { const d0 = arr.find(s => s.type === 'burn' || s.type === 'bleed' || s.type === 'poison'); if (d0) player._lastHit = d0.type === 'burn' ? 'burning' : d0.type === 'bleed' ? 'bleeding' : 'poison'; sfx('die'); gameOver(); } }
     else { ent.hp -= dot; ent.flash = Math.max(ent.flash, 4); if (ent.dotAcc === undefined) ent.dotAcc = 0; ent.dotAcc += dot; if (ent.dotAcc >= 1) { floatText(Math.round(ent.dotAcc), ent.x, ent.z + 0.6, '#ff9a5b'); ent.dotAcc = 0; } if (ent.hp <= 0) { killMonster(ent); return; } }
   }
   ent.statuses = arr.filter(s => s.dur > 0);
@@ -116,11 +140,13 @@ function hitMonsterProj(m, dmg, kind) { const rm = monsterResistMult(m, kind); i
 function killMonster(m) {
   _ev(m.boss ? 'killBoss' : m.elite ? 'killElite' : 'kill');
   gainXP(m.xp); player.kills++; killsTxt.textContent = 'Slain: ' + player.kills;
-  if (zone === 'dungeon') { if (floorObj && !floorObj.done && bountyProgress(floorObj, m.champion ? 'champion' : 'kill')) payBounty(); renderObjective(); }
+  if (zone === 'dungeon') { if (floorObj && !floorObj.done) { let paid = bountyProgress(floorObj, m.champion ? 'champion' : 'kill'); if (!paid && m.elite && bountyProgress(floorObj, 'elite')) paid = true; if (paid) payBounty(); } renderObjective(); }
+  else if (zone === 'wild') { if (wildObj && !wildObj.done && bountyProgress(wildObj, m.champion ? 'champion' : 'kill')) payWildBounty(); renderObjective(); }
   sfx(m.boss ? 'bossdie' : 'death'); spawnSparks(m.x, m.z, 0xff7a3a, m.boss ? 8 : 7); impactFlash(m.x, m.z, m.boss ? 0xff5030 : 0xffb060);
-  if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), []); }
+  if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), [], 'a death explosion'); }
   if (m.boss) {
     bossActive = false; boss = null; if (d_deeperPortal) d_deeperPortal.group.visible = true; spawnExplosion(m.x, m.z, 0xff3020); showMsg('The way down opens!');
+    if (m.role === 'boss_dragonevo' && difficulty === 'Inferno' && character && character.flags && !character.flags.sigil) { character.flags.sigil = true; showMsg('🔥 The Sigil of the Inferno is yours — Depth 666 answers the Waypoints.'); sfx('level'); saveProgress(true); } /* keyed Devil access: fell Pyraxis on Inferno */
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 4, null, 0.35); for (let k = 0; k < 3; k++) { const c = rollItem(curScale.ilvl + 4, null, 0.35); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(150, 300) + depth * 20)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'potion', 1); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-3, 3), m.z + rand(-3, 3), 'manapotion', 1);
   } else if (m.champion) {
@@ -128,11 +154,16 @@ function killMonster(m) {
     for (let i = 0; i < 5; i++) { const ang = i / 5 * 6.28; let best = rollItem(curScale.ilvl + 3, null, 0.30); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 3, null, 0.30); if (itemScore(c) > itemScore(best)) best = c; } dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', best); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(80, 160) + depth * 14)); for (let i = 0; i < 2; i++) dropLoot(m.x + rand(-2, 2), m.z + rand(-2, 2), 'potion', 1); if (Math.random() < 0.5) dropLoot(m.x, m.z + 1, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 0 : 1 });
   } else if (m.treasure) {
-    spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The hoard spills open!');
-    const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
-    dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
+    spawnExplosion(m.x, m.z, m.goblinKind === 'gems' ? 0x6ad8ff : 0xffd24d); showMsg('The hoard spills open!'); _ev('goblin');
+    if (m.goblinKind === 'gems') { // Gem Hoarder: a gem shower instead of gear/gold
+      const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.55 ? 1 : 2 }); }
+      dropLoot(m.x, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 2 : 3 }); dropLoot(m.x + 1, m.z, 'gold', Math.round(rand(60, 120) + depth * 8));
+    } else {
+      const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
+      dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
+    }
   } else if (m.elite) {
-    if (m.elite.includes('fiery')) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, []); spawnExplosion(m.x, m.z, 0xff7a2a); }
+    for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onDeath) md.onDeath(m); }
     let best = rollItem(curScale.ilvl + 2, null, 0.18); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.18); if (itemScore(c) > itemScore(best)) best = c; }
     dropLoot(m.x, m.z, 'item', best); dropLoot(m.x + 1, m.z, 'gold', Math.round(rand(20, 50) + player.level + depth * 6)); if (Math.random() < .5) dropLoot(m.x - 1, m.z, (Math.random() < 0.4 ? 'manapotion' : 'potion'), 1);
   } else {
@@ -148,7 +179,7 @@ function killMonster(m) {
 function gainXP(n) {
   player.xp += n; let leveled = false;
   while (player.xp >= player.xpNext) {
-    player.xp -= player.xpNext; player.level++; character.level = player.level; player.xpNext = Math.round(player.xpNext * 1.45);
+    player.xp -= player.xpNext; player.level++; character.level = player.level; player.xpNext = Math.round(player.xpNext * 1.45); _ev('levelup');
     const gr = (CLASSES[character.class] || CLASSES.warrior).grow; character.base.hpMax += gr.hp; character.base.mpMax += gr.mp; character.base.dmg += gr.dmg; character.skillPoints += 2; character.abilityPoints = (character.abilityPoints || 0) + 1;
     recompute(); syncActives(); renderSkillbar(); player.hp = player.hpMax; player.mp = player.mpMax; setLevelText(player.level); showMsg('Level Up!  Lv ' + player.level); sfx('level'); leveled = true;
   }
@@ -157,7 +188,7 @@ function gainXP(n) {
 }
 function dropLoot(x, z, kind, payload) {
   _ev('loot:' + kind);
-  if (kind === 'gold') payload = Math.round(payload * (1 + (player.goldFind || 0))); // Gold Find % affix
+  if (kind === 'gold') payload = Math.round(payload * (1 + (player.goldFind || 0)) * (player.buffs.greedUntil > now() ? 2 : 1)); // Gold Find % affix · Shrine of Greed doubles
   const group = new THREE.Group(); group.position.set(x, 0, z); group.userData.noDispose = true; let icon, col, tier;
   if (kind === 'gold') { col = 0xffd24d; tier = 1; icon = new THREE.Mesh(_LGEO.gold, _lootMat('gold', col)); }
   else if (kind === 'potion') { col = 0xff5a4a; tier = 1; icon = new THREE.Mesh(_LGEO.pot, _lootMat('potion', col)); }

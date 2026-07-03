@@ -98,10 +98,39 @@ test('a freshly created character survives a migrate round-trip unchanged in sha
   const fresh = SAVE.newCharacter('Round', 'warrior');
   const migrated = SAVE.migrate(JSON.parse(JSON.stringify(fresh)));
   assert.equal(migrated.class, 'warrior');
-  assert.equal(JSON.stringify(Object.keys(migrated.equipment).sort()), JSON.stringify([...SLOTS].sort()));
+  for (const s of SLOTS) assert.ok(s in migrated.equipment, `equipment slot ${s} lost during migrate`);
+  assert.ok('offhand' in migrated.equipment, 'v8 offhand equipment slot lost during migrate');
   for (const id of Object.keys(SKILLDEFS)) {
     assert.ok(id in migrated.skills, `skill ${id} lost during migrate`);
   }
+});
+
+test('migrate backfills the v8 fields (offhand slot, flags, journal) without touching v7 data', () => {
+  const v7 = {
+    name: 'Seven',
+    class: 'mage',
+    level: 9,
+    gems: { 'ruby:0': 2 },
+    loadout: ['strike', 'fireball', null, null, null, null],
+    skillRunes: { fireball: { fireball_dmg: 1 } },
+    abilityPoints: 3,
+  };
+  const m = SAVE.migrate(v7);
+  assert.equal(m.equipment.offhand, null, 'offhand backfilled as empty');
+  assert.equal(typeof m.flags, 'object', 'flags object backfilled');
+  assert.ok(m.ach && typeof m.ach.u === 'object' && typeof m.ach.n === 'object', 'journal backfilled');
+  assert.equal(m.abilityPoints, 3, 'v7 ability points untouched');
+  assert.equal(m.loadout[1], 'fireball', 'v7 loadout untouched');
+  assert.equal(m.skillRunes.fireball.fireball_dmg, 1, 'v7 rune allocs untouched');
+  assert.equal(m.gems['ruby:0'], 2, 'v7 gem pouch untouched');
+  // idempotent: an already-v8 character keeps its flags/journal contents
+  m.flags.sigil = true;
+  m.ach.u.first_blood = 1;
+  m.ach.n.kill = 41;
+  const again = SAVE.migrate(JSON.parse(JSON.stringify(m)));
+  assert.equal(again.flags.sigil, true, 'flags survive re-migration');
+  assert.equal(again.ach.u.first_blood, 1, 'unlocks survive re-migration');
+  assert.equal(again.ach.n.kill, 41, 'counters survive re-migration');
 });
 
 // --- SAVE.load()/persist(): the actual production path (parse localStorage → migrate slots → backfill
@@ -164,6 +193,8 @@ test('persist() then load() round-trips a fresh character without shape loss', (
   assert.equal(back.name, 'Trip');
   assert.equal(back.class, 'rogue');
   assert.equal(back.loadout.length, 6);
-  assert.equal(JSON.stringify(Object.keys(back.equipment).sort()), JSON.stringify([...SLOTS].sort()));
+  for (const s of SLOTS) assert.ok(s in back.equipment, `equipment slot ${s} lost on round-trip`);
+  assert.ok('offhand' in back.equipment, 'v8 offhand slot lost on round-trip');
+  assert.ok(back.flags && back.ach, 'v8 flags/journal lost on round-trip');
   for (const id of Object.keys(SKILLDEFS)) assert.ok(id in back.skills, `skill ${id} lost on round-trip`);
 });

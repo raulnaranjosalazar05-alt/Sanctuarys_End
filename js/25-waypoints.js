@@ -24,7 +24,7 @@ function renderWaypoints() {
   }
   for (const a of AREAS) {
     if (a.kind === 'wild') continue;
-    if (a.kind === 'dungeon') { addWpRow('🕳️', 'The Descent — Depth 1', 'Dungeon entrance', () => travelTo('descent', 'start')); if (character && character.maxDepth > 1) { addWpRow('🔥', 'The Descent — Depth ' + character.maxDepth, 'Your deepest checkpoint', () => travelTo('descent', 'deep')); addDepthRow(); } continue; }
+    if (a.kind === 'dungeon') { addWpRow('🕳️', 'The Descent — Depth 1', 'Dungeon entrance', () => travelTo('descent', 'start')); if (character && character.maxDepth > 1) { addWpRow('🔥', 'The Descent — Depth ' + character.maxDepth, 'Your deepest checkpoint', () => travelTo('descent', 'deep')); addDepthRow(); } if (character && character.flags && character.flags.sigil) addWpRow('😈', 'The Inferno — Depth 666', 'Belphegor awaits beyond the Sigil', () => travelTo('descent', 'depth', 666)); continue; }
     if (character && character.discovered && !character.discovered[a.id]) { addWpRow('❓', a.name + ' — undiscovered', 'Find its portal out in the wilds', () => showMsg('Search the wilderness for ' + a.name)); continue; }
     const here = (zone === 'town' && curTownArea && curTownArea.id === a.id);
     const icon = a.tier >= 2 ? '🔥' : a.tier >= 1 ? '🏰' : '🏡'; const sub = a.tier >= 2 ? 'Endgame hub · exotic wares' : a.tier >= 1 ? 'Hub · premium wares' : 'Safe hub · merchant & stash';

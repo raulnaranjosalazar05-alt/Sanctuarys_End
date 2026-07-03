@@ -1,6 +1,6 @@
 /* ================= SAVE ================= */
 const SAVE = {
-  KEY: 'sanctuarys_end_saves', VERSION: 7, NUM_SLOTS: 3, _data: null,
+  KEY: 'sanctuarys_end_saves', VERSION: 8, NUM_SLOTS: 3, _data: null,
   load() {
     try { this._data = JSON.parse(localStorage.getItem(this.KEY)); } catch (e) { this._data = null; }
     if (!this._data) this._data = { version: this.VERSION, slots: Array(this.NUM_SLOTS).fill(null) };
@@ -15,7 +15,7 @@ const SAVE = {
     ch.stats = ch.stats || { str: 10, dex: 10, vit: 10, eng: 10 };['str', 'dex', 'vit', 'eng'].forEach(k => { if (ch.stats[k] == null) ch.stats[k] = 10; });
     if (ch.statPoints == null) ch.statPoints = 0; if (ch.skillPoints == null) ch.skillPoints = 0;
     ch.inventory = ch.inventory || []; ch.stash = ch.stash || [];
-    ch.equipment = Object.assign({ weapon: null, helm: null, armor: null, gloves: null, boots: null, ring: null, amulet: null }, ch.equipment || {});
+    ch.equipment = Object.assign({ weapon: null, helm: null, armor: null, gloves: null, boots: null, ring: null, amulet: null, offhand: null }, ch.equipment || {}); // offhand: V8
     ch.skills = Object.assign(defaultSkillRanks(), ch.skills || {});
     if (ch.potions == null) ch.potions = 4;
     if (ch.hpPotions == null) ch.hpPotions = (ch.potions != null ? ch.potions : 4); if (ch.mpPotions == null) ch.mpPotions = 2;
@@ -28,6 +28,9 @@ const SAVE = {
     if (!Array.isArray(ch.loadout) || ch.loadout.length !== 6) ch.loadout = defaultLoadout(ch); else ch.loadout[0] = 'strike';
     ch.skillRunes = ch.skillRunes || {};
     if (ch.abilityPoints == null) ch.abilityPoints = Math.max(0, (ch.level || 1) - 1); // retroactive +1/lvl from L2
+    // ---- V8: progress flags + achievement journal (additive; offhand backfills via the equipment assign above) ----
+    if (!ch.flags || typeof ch.flags !== 'object') ch.flags = {};
+    if (!ch.ach || typeof ch.ach !== 'object') ch.ach = { u: {}, n: {} }; else { ch.ach.u = ch.ach.u || {}; ch.ach.n = ch.ach.n || {}; }
     return ch;
   },
   persist() { try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); return true; } catch (e) { return false; } },
@@ -37,13 +40,13 @@ const SAVE = {
     return {
       name, class: cls, version: this.VERSION, created: Date.now(), lastPlayed: Date.now(), level: 1, xp: 0, xpNext: 30, gold: 0, materials: 0, gems: {}, kills: 0, potions: 4, hpPotions: 4, mpPotions: 2, potionTier: 0, potionCap: 10, invMax: 40, stashMax: 40, maxDepth: 0, activeSkillId: null, discovered: { town: true, highreach: false, emberhold: false },
       base: { hpMax: 100, mpMax: 50, dmg: 10 }, stats: { str: c.base.str, dex: c.base.dex, vit: c.base.vit, eng: c.base.eng }, statPoints: 0, skillPoints: 0,
-      inventory: [], stash: [], equipment: { weapon: null, helm: null, armor: null, gloves: null, boots: null, ring: null, amulet: null }, skills, passives: [PTREE.starts[cls]],
-      loadout: ['strike', (c.granted && c.granted[0]) || null, null, null, null, null], skillRunes: {}, abilityPoints: 0
+      inventory: [], stash: [], equipment: { weapon: null, helm: null, armor: null, gloves: null, boots: null, ring: null, amulet: null, offhand: null }, skills, passives: [PTREE.starts[cls]],
+      loadout: ['strike', (c.granted && c.granted[0]) || null, null, null, null, null], skillRunes: {}, abilityPoints: 0, flags: {}, ach: { u: {}, n: {} }
     };
   },
   saveCharacter(i, ch) { ch.lastPlayed = Date.now(); this._data.slots[i] = ch; return this.persist(); },
   deleteSlot(i) { this._data.slots[i] = null; this.persist(); }
 };
 SAVE.load();
-let currentSlot = null, character = null; const INV_CAP = 80, STASH_CAP = 80;
+let currentSlot = null, character = null; const INV_CAP = 80, STASH_CAP = 240; /* stash: 3 tabs × 80 (v50) */
 let difficulty = SAVE._data.settings.difficulty;

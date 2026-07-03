@@ -21,14 +21,14 @@ function loadAbility() {
   loadFiles(sandbox, [RUNES_FILE]);
   return runSnippet(
     sandbox,
-    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
+    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,CLASSES,PTREE,rankUpCost,canRankUp,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
   );
 }
 
 const AB = loadAbility();
 
-test('save VERSION is bumped to 7 for the loadout/rune migration', () => {
-  assert.equal(AB.SAVE.VERSION, 7);
+test('save VERSION is bumped to 8 for the offhand/flags/journal migration', () => {
+  assert.equal(AB.SAVE.VERSION, 8);
 });
 
 test('defaultLoadout locks the basic attack, honors activeSkillId, and never duplicates', () => {
@@ -144,6 +144,105 @@ test('the Extended (addDuration) rune folds into resolveSkill for util skills', 
   AB.setChar({ skillRunes: { warcry: { warcry_sh2: 1 } } });
   const R = AB.resolveSkill('warcry');
   assert.equal(R.addDuration, 1500, 'Extended rune should add 1500ms of duration');
+});
+
+test('every declared rune flag is obtainable on at least one tree', () => {
+  // RUNE_FLAG_INFO is the full behavior-flag vocabulary; a flag with a handler but no node granting it
+  // is dead content (the v49 state of chillNova/knockback/vampiric/lingering). Assert full coverage.
+  const placed = new Set();
+  for (const id in AB.SKILL_RUNES) {
+    const tree = AB.SKILL_RUNES[id];
+    for (const nid in tree.nodes) for (const f of tree.nodes[nid].flags || []) placed.add(f);
+  }
+  for (const flag in AB.RUNE_FLAG_INFO) {
+    assert.ok(placed.has(flag), `flag "${flag}" is declared but no rune node grants it`);
+  }
+});
+
+test('the side notables (vampiric / knockback / chill-burst) hang off the utility arms and gate correctly', () => {
+  AB.setLevel(99);
+  // fireball is a proj tree → gets _vamp off the Quicken arm; multishot is multiproj → _cnova + _kb.
+  assert.ok(AB.SKILL_RUNES.fireball.nodes.fireball_vamp, 'proj tree has the Vampiric notable');
+  assert.ok(AB.SKILL_RUNES.multishot.nodes.multishot_cnova, 'multiproj tree has the Frost Burst notable');
+  assert.ok(AB.SKILL_RUNES.multishot.nodes.multishot_kb, 'multiproj tree has the Concussive notable');
+  AB.setChar({ abilityPoints: 99, skillRunes: { fireball: {} } });
+  assert.equal(AB.canAllocRune('fireball', 'fireball_vamp'), false, 'side notable needs its arm allocated first');
+  AB.setChar({ abilityPoints: 99, skillRunes: { fireball: { fireball_dmg: 1, fireball_cdr: 1 } } });
+  assert.equal(AB.canAllocRune('fireball', 'fireball_vamp'), true, 'reachable via Empower → Quicken');
+  AB.setChar({ skillRunes: { fireball: { fireball_vamp: 1 } } });
+  const R = AB.resolveSkill('fireball');
+  assert.ok(R.flags.has('vampiric'), 'allocated side notable folds its flag');
+});
+
+test('Ground Slam carries the stun on-hit tag', () => {
+  assert.equal(AB.SKILLDEFS.groundslam.onHit, 'stun', 'groundslam is the player stun source');
+});
+
+test('the barbarian is a complete class: kit, unlock map, creation, loadout', () => {
+  assert.ok(AB.CLASSES.barbarian, 'CLASSES.barbarian exists');
+  const map = AB.CLASS_ACTIVES.barbarian;
+  assert.ok(map, 'barbarian unlock map exists');
+  for (const id of Object.keys(map)) assert.ok(AB.SKILLDEFS[id], `barbarian unlock "${id}" is not a skill`);
+  for (const id of ['rend', 'frenzy', 'shockwave']) {
+    assert.ok(AB.SKILLDEFS[id], `new active ${id} defined`);
+    assert.ok(AB.ACTIVE_ORDER.includes(id), `${id} is in ACTIVE_ORDER`);
+    assert.ok(AB.SKILL_RUNES[id], `${id} has a rune tree`);
+  }
+  const c = AB.SAVE.newCharacter('Grom', 'barbarian');
+  assert.equal(c.class, 'barbarian');
+  assert.equal(c.passives[0], AB.PTREE.starts.barbarian, 'starts in the fury sector');
+  assert.equal(c.loadout[1], 'rend', 'granted skill lands on the RMB slot');
+  AB.setChar({ class: 'barbarian' });
+  const list = AB.classAbilities();
+  assert.ok(
+    list.includes('rend') && list.includes('shockwave') && list.includes('frenzy'),
+    'kit surfaces in the abilities list',
+  );
+});
+
+test('skill-rank spending: cost curve and gates', () => {
+  assert.equal(AB.rankUpCost(1), 1, 'rank 2 costs 1 point');
+  assert.equal(AB.rankUpCost(4), 4, 'rank 5 costs 4 points');
+  let total = 0;
+  for (let r = 1; r < 5; r++) total += AB.rankUpCost(r);
+  assert.equal(total, 10, 'maxing a rank-5 skill costs 10 points — a full rune tree, roughly');
+  // gates: must own the skill, respect maxRank, afford the cost, and only actives rank this way
+  assert.equal(AB.canRankUp({ skills: { fireball: 0 }, abilityPoints: 99 }, 'fireball'), false, 'locked skill');
+  assert.equal(AB.canRankUp({ skills: { fireball: 1 }, abilityPoints: 0 }, 'fireball'), false, 'no points');
+  assert.equal(AB.canRankUp({ skills: { fireball: 1 }, abilityPoints: 1 }, 'fireball'), true, 'rank 2 affordable');
+  assert.equal(AB.canRankUp({ skills: { fireball: 5 }, abilityPoints: 99 }, 'fireball'), false, 'at maxRank');
+  assert.equal(
+    AB.canRankUp({ skills: { cleave: 1 }, abilityPoints: 99 }, 'cleave'),
+    false,
+    'maxRank-1 skills have no rank axis',
+  );
+  assert.equal(
+    AB.canRankUp({ skills: { toughness: 1 }, abilityPoints: 99 }, 'toughness'),
+    false,
+    'passives rank via Techniques, not this path',
+  );
+});
+
+test('every keystone in the forest is reachable from every class start', () => {
+  const { nodes, adj, starts } = AB.PTREE;
+  for (const cls in starts) {
+    const start = starts[cls];
+    assert.ok(nodes[start], `${cls} start node missing`);
+    const seen = new Set([start]);
+    const q = [start];
+    while (q.length) {
+      const n = q.shift();
+      for (const nb of adj[n] || []) {
+        if (!seen.has(nb)) {
+          seen.add(nb);
+          q.push(nb);
+        }
+      }
+    }
+    for (const id in nodes) {
+      if (nodes[id].type === 'keystone') assert.ok(seen.has(id), `keystone ${id} unreachable from ${cls} start`);
+    }
+  }
 });
 
 test('canAllocRune enforces connectivity, exclusivity, and level gates', () => {

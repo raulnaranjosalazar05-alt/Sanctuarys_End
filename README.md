@@ -21,21 +21,22 @@ python -m http.server 8000
 npx serve . -l 8000
 ```
 
-Then open `http://localhost:8000/sanctuary.html`. WebGL support and (the first time) an internet connection for the CDN libraries are required.
+Then open `http://localhost:8000/sanctuary.html`. The renderer is WebGPU-first (recent Chromium-based browsers) and falls back to WebGL2 elsewhere; the first load also needs an internet connection for the CDN libraries.
 
 > **Migrating an existing `file://` save?** Saves made by the old double-click build live in the `file://` origin and will *not* appear at `http://localhost:8000`. To carry them over: open your old `file://` build, go to **Settings → Saves → Download** (or **Copy**), then open the new `http://localhost:8000` build, paste/load the file under **Settings → Saves → Import & Reload**.
 
 ## Features
 
-- Three classes — Warrior, Mage, and Rogue, each with their own skills and stat growth
-- Active skills plus a passive skill forest of nodes, notables, and keystones
-- Deep loot: five rarity tiers, affixes, enchanting, and gems across seven gear slots
-- Towns and shops — vendors, a smith, alchemist, enchanter, gambler, and jeweler
-- An endless procedural dungeon ("The Descent") with bosses every few floors
-- An open world of biome-themed regions to explore and travel between
-- Difficulty tiers from Normal all the way up to Inferno
+- Four classes — Warrior, Mage, Rogue, and Barbarian, each with their own skills and stat growth
+- Active skills with rune trees and rank-ups, plus a four-sector passive skill forest
+- Deep loot: five rarity tiers, affixes, enchanting, gems, offhands and two-handers across eight gear slots
+- Towns and shops — vendors, a smith with targeted crafting, alchemist, enchanter, gambler, jeweler, and a Dust shop
+- An endless procedural dungeon ("The Descent") with room-and-door floor layouts and telegraphed bosses every few floors
+- An open world of biome-themed regions with hunts and roaming stalkers
+- Difficulty tiers from Normal to Inferno — earned by how deep you've descended
+- A Journal of achievements, floor bounties, shrines, treasure chests and goblins
 - Auto-saving characters with multiple save slots (plus export/import for backups)
-- Optional online co-op
+- Fully self-hosted (no CDN) — and optional online co-op
 
 ## Co-op (optional)
 
@@ -55,7 +56,7 @@ Note: co-op uses a `ws://` (non-TLS) connection, so play from a locally-served `
 
 The full game codex lives in `sanctuary_wiki.html` — open it in your browser for searchable, detailed docs on classes, stats, combat formulas, status effects, items and affixes, uniques and sets, the economy, zones, difficulty scaling, monsters, bosses, and the version changelog.
 
-See also [CHANGELOG.md](CHANGELOG.md) for the release history.
+See also [CHANGELOG.md](CHANGELOG.md) for the release history, and [ROADMAP.md](ROADMAP.md) for where the game is headed next.
 
 ## Development
 

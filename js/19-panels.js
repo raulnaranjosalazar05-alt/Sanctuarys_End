@@ -10,7 +10,29 @@ function setSkillTab(name) {
   _skTab = name;
   document.querySelectorAll('#skillTabs .tab').forEach(t => t.classList.toggle('on', t.dataset.sktab === name));
   document.querySelectorAll('#skillPanel .skPane').forEach(p => p.style.display = (p.dataset.skpane === name) ? 'block' : 'none');
-  if (name === 'forest') renderSkillTree(); else renderAbilities();
+  if (name === 'forest') renderSkillTree(); else if (name === 'journal') renderJournal(); else renderAbilities();
+}
+function renderJournal() {
+  const host = document.getElementById('journalBody'); if (!host || !character) return;
+  const a = character.ach || { u: {}, n: {} };
+  const done = ACH_DEFS.filter(d => a.u[d.id]).length;
+  const note = document.getElementById('journalNote'); if (note) note.textContent = done + '/' + ACH_DEFS.length + ' deeds chronicled — each unlock pays gold or ✦ Dust.';
+  let h = '';
+  for (const d of ACH_DEFS) {
+    const un = !!a.u[d.id]; const need = d.n || 1; const cur = un ? need : Math.min(a.n[d.ev] || 0, need);
+    const pct = d.check ? (un ? 100 : 0) : Math.round(cur / need * 100);
+    const rew = d.reward ? ((d.reward.gold ? '+' + d.reward.gold + 'g ' : '') + (d.reward.dust ? '+' + d.reward.dust + '✦' : '')) : '';
+    h += `<div class="row" style="align-items:center${un ? '' : ';opacity:.62'}">
+      <div class="ric" style="font-size:22px">${d.ico}</div>
+      <div style="flex:1;min-width:0">
+        <div class="rname" style="color:${un ? '#ffe27a' : '#c8b89a'}">${d.name} ${un ? '✓' : ''}</div>
+        <div style="color:#8a7a5a;font-size:11px">${d.desc}${d.check ? '' : ' · ' + cur + '/' + need}</div>
+        <div style="height:4px;background:rgba(0,0,0,.45);border-radius:2px;margin-top:3px"><div style="height:100%;width:${pct}%;background:${un ? '#5ad65a' : '#8a6a2a'};border-radius:2px"></div></div>
+      </div>
+      <div class="rprice" style="color:#b9a6ff;font-size:11px">${rew}</div>
+    </div>`;
+  }
+  host.innerHTML = h;
 }
 function toggleSkill(tab) { const o = !skillOpen; closeAll(); if (o) { skillOpen = true; skillPanel.style.display = 'block'; setSkillTab(tab || _skTab); } }
 function openSkillPanel(tab) { if (!skillOpen) toggleSkill(tab); else setSkillTab(tab); }
@@ -120,7 +142,7 @@ function smithAction() {
   if (smithTab === 'upgrade') { if ((it.upgrade || 0) >= upgradeMax(it)) return; const cost = upgradeCost(it); if (player.gold < cost) return; player.gold -= cost; it.upgrade = (it.upgrade || 0) + 1; if (where === 'eq') recompute(); sfx('level'); showMsg(it.name + ' → +' + it.upgrade); }
   else if (smithTab === 'reforge') { if (!reforgeable(it)) return; const rc = reforgeCost(it); if (player.gold < rc.gold || (character.materials || 0) < rc.dust) return; player.gold -= rc.gold; character.materials = (character.materials || 0) - rc.dust; const before = it.rarity; reforgeItem(it); if (where === 'eq') { recompute(); attachHeroWeapon(); } sfx('level'); showMsg(it.rarity !== before ? (it.name + ' → ' + (RARITY_NAME[it.rarity] || it.rarity) + '!') : ('Reforged: ' + it.name)); }
   else if (smithTab === 'socket') { const max = SOCKET_MAX[it.slot] || 0, cur = (it.sockets || []).length; if (cur >= max) return; const cost = { dust: 6 + (RTIER[it.rarity] || 1) * 4, gold: Math.round(itemScore(it) * 0.2) + 20 }; if (player.gold < cost.gold || (character.materials || 0) < cost.dust) return; player.gold -= cost.gold; character.materials = (character.materials || 0) - cost.dust; (it.sockets = it.sockets || []).push(null); if (where === 'eq') recompute(); sfx('level'); showMsg(it.name + ' → socket added'); }
-  else { if (where !== 'inv') return; const du = dustValue(it); if ((RTIER[it.rarity] || 1) >= 3 && !confirm('Salvage ' + it.name + ' (' + (RARITY_NAME[it.rarity] || it.rarity) + ') into ' + du + ' Dust? This destroys the item.')) return; const idx = character.inventory.indexOf(it); if (idx < 0) return; character.materials = (character.materials || 0) + du; character.inventory.splice(idx, 1); smithPick = null; sfx('potion'); showMsg('Salvaged: +' + du + '✦'); }
+  else { if (where !== 'inv') return; if (it.lock) { showMsg('🔒 ' + it.name + ' is locked'); return; } const du = dustValue(it); if ((RTIER[it.rarity] || 1) >= 3 && !confirm('Salvage ' + it.name + ' (' + (RARITY_NAME[it.rarity] || it.rarity) + ') into ' + du + ' Dust? This destroys the item.')) return; const idx = character.inventory.indexOf(it); if (idx < 0) return; character.materials = (character.materials || 0) + du; character.inventory.splice(idx, 1); smithPick = null; sfx('potion'); showMsg('Salvaged: +' + du + '✦'); }
   goldTxt.textContent = player.gold + ' g'; renderSmith(); updatePips(); saveProgress(false);
 }
 function renderSmith() {
@@ -137,7 +159,16 @@ function renderSmith() {
       html += atMax ? `<div class="smithAct">Fully upgraded — <b>+${cur}%</b> (MAX ${max})</div>` : `<div class="smithAct"><span>+${cur}% → <b>+${nxt}%</b></span><span class="rprice">${cost} g</span><div class="rbtn${player.gold >= cost ? '' : ' dis'}" id="smithDo">Upgrade</div></div>`;
     } else if (smithTab === 'reforge') {
       if (!reforgeable(it)) html += `<div class="smithAct" style="color:#6a5a44">${RARITY_NAME[it.rarity] || it.rarity} gear can't be reforged — only common, magic &amp; rare.</div>`;
-      else { const rc = reforgeCost(it), can = player.gold >= rc.gold && (character.materials || 0) >= rc.dust; html += `<div class="smithAct"><span>Reroll all affixes</span><span class="rprice">${rc.gold}g · ${rc.dust}✦</span><div class="rbtn${can ? '' : ' dis'}" id="smithDo" style="border-color:#6a4aa0">Reforge</div></div>`; }
+      else {
+        const rc = reforgeCost(it), can = player.gold >= rc.gold && (character.materials || 0) >= rc.dust; html += `<div class="smithAct"><span>Reroll all affixes</span><span class="rprice">${rc.gold}g · ${rc.dust}✦</span><div class="rbtn${can ? '' : ' dis'}" id="smithDo" style="border-color:#6a4aa0">Reforge</div></div>`;
+        // targeted Dust crafting: reroll ONE affix's value, or imbue a chosen affix (best of two rolls)
+        const keys = Object.keys(it.affixes || {}).filter(k => AFFIXES[k]); const dust = character.materials || 0;
+        html += `<div class="ptsNote" style="margin-top:12px">Targeted crafting — ✦ Dust only</div>`;
+        const rrc = rerollAffixCost(it);
+        for (const k of keys) html += `<div class="row"><div class="rname">+${it.affixes[k]} ${AFFIXES[k].label}</div><div class="rprice">${rrc}✦</div><div class="rbtn${dust >= rrc ? '' : ' dis'}" data-raffix="${k}">Reroll</div></div>`;
+        const ic = imbueAffixCost(it);
+        html += `<div class="row"><div class="rname">Imbue <span style="color:#8a7a5a;font-size:11px">(add or replace a chosen affix — best of two rolls)</span></div><select id="imbueSel" style="background:#0d0a06;border:1px solid #4a3a5a;color:#d8c8ff;border-radius:4px;padding:4px;max-width:170px">${AFFIX_KEYS.map(k => `<option value="${k}">${AFFIXES[k].label}</option>`).join('')}</select><div class="rprice">${ic}✦</div><div class="rbtn${dust >= ic ? '' : ' dis'}" id="imbueDo">Imbue</div></div>`;
+      }
     } else if (smithTab === 'socket') {
       const max = SOCKET_MAX[it.slot] || 0, cur = (it.sockets || []).length;
       if (!max) html += `<div class="smithAct" style="color:#6a5a44">This slot can't hold sockets.</div>`;
@@ -150,20 +181,26 @@ function renderSmith() {
   }
   body.innerHTML = html;
   if (it) { const rn = body.querySelector('.smithSlot .rname'); if (rn) bindTip(rn, it); const db = document.getElementById('smithDo'); if (db) db.onclick = smithAction; }
+  if (it && smithTab === 'reforge' && reforgeable(it)) {
+    body.querySelectorAll('[data-raffix]').forEach(b => { b.onclick = () => { const c = rerollAffixCost(it); if ((character.materials || 0) < c) return; if (!rerollAffix(it, b.dataset.raffix)) return; character.materials -= c; if (where === 'eq') recompute(); sfx('level'); renderSmith(); updatePips(); saveProgress(false); }; });
+    const ib = document.getElementById('imbueDo'); if (ib) ib.onclick = () => { const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('imbueSel')); const c = imbueAffixCost(it); if (!sel || (character.materials || 0) < c) return; if (!imbueAffix(it, sel.value)) return; character.materials -= c; if (where === 'eq') recompute(); sfx('level'); renderSmith(); updatePips(); saveProgress(false); };
+  }
   if (smithTab === 'salvage') {
-    const junk = character.inventory.filter(j => j.rarity === 'common' || j.rarity === 'magic');
+    const isJunk = j => (j.rarity === 'common' || j.rarity === 'magic') && !j.lock;
+    const junk = character.inventory.filter(isJunk);
     if (junk.length) {
       const jd = junk.reduce((s, j) => s + dustValue(j), 0); const bar = document.createElement('div'); bar.className = 'row'; bar.style.marginTop = '14px'; bar.style.background = 'rgba(40,30,16,.55)';
-      bar.innerHTML = `<div class="rname" style="flex:1">Backpack junk <span style="color:#8a7a5a;font-size:11px">(${junk.length} common/magic)</span></div><div class="rbtn" id="smithSalvageJunk" style="border-color:#6a4aa0">Salvage Junk +${jd}✦</div>`; body.appendChild(bar);
-      document.getElementById('smithSalvageJunk').onclick = () => { const jk = character.inventory.filter(j => j.rarity === 'common' || j.rarity === 'magic'); if (!jk.length) return; const d = jk.reduce((s, j) => s + dustValue(j), 0); if (jk.includes(smithPick)) smithPick = null; character.materials = (character.materials || 0) + d; character.inventory = character.inventory.filter(j => !(j.rarity === 'common' || j.rarity === 'magic')); sfx('potion'); showMsg('Salvaged junk: +' + d + '✦'); renderSmith(); updatePips(); saveProgress(false); };
+      bar.innerHTML = `<div class="rname" style="flex:1">Backpack junk <span style="color:#8a7a5a;font-size:11px">(${junk.length} common/magic · 🔒 kept)</span></div><div class="rbtn" id="smithSalvageJunk" style="border-color:#6a4aa0">Salvage Junk +${jd}✦</div>`; body.appendChild(bar);
+      document.getElementById('smithSalvageJunk').onclick = () => { const jk = character.inventory.filter(isJunk); if (!jk.length) return; const d = jk.reduce((s, j) => s + dustValue(j), 0); if (jk.includes(smithPick)) smithPick = null; character.materials = (character.materials || 0) + d; character.inventory = character.inventory.filter(j => !isJunk(j)); sfx('potion'); showMsg('Salvaged junk: +' + d + '✦'); renderSmith(); updatePips(); saveProgress(false); };
     }
   }
 }
-function affixLines(it) { let s = ''; if (it.slot === 'weapon' && it.baseStat) s += `<div class="base">${it.baseStat} Damage</div>`; else if (it.baseStat) s += `<div class="base">${it.baseStat} Armor</div>`; const keys = Object.keys(it.affixes).sort((a, b) => (AFFIX_CAT_ORD[AFFIX_CAT[a]] || 5) - (AFFIX_CAT_ORD[AFFIX_CAT[b]] || 5)); for (const k of keys) s += `<div class="aff aff-${AFFIX_CAT[k] || 'util'}">+${it.affixes[k]} ${AFFIXES[k].label}</div>`; if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) s += `<div class="aff" style="color:#9f6aff">✦ +${it.enchant.val} ${AFFIXES[it.enchant.key].label} (enchant)</div>`; if (it.sockets && it.sockets.length) s += `<div class="aff aff-util">` + it.sockets.map(g => { if (!g) return '◯ (empty)'; const e = gemEff(it.slot, g); return `${GEMS[g.t].ico} +${e.vals[g.q]} ${AFFIXES[e.key].label}`; }).join(' · ') + `</div>`; return s; }
-function statBundle(it) { const b = {}; if (it.baseStat) b[it.slot === 'weapon' ? 'Damage' : 'Armor'] = (b[it.slot === 'weapon' ? 'Damage' : 'Armor'] || 0) + it.baseStat; for (const k in it.affixes) { const l = AFFIXES[k] ? AFFIXES[k].label : k; b[l] = (b[l] || 0) + it.affixes[k]; } if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) { const l = AFFIXES[it.enchant.key].label; b[l] = (b[l] || 0) + (it.enchant.val || 0); } if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) { const l = AFFIXES[e.key].label; b[l] = (b[l] || 0) + e.vals[g.q]; } } } return b; }
+function affixLines(it) { let s = ''; if (it.slot === 'weapon' && it.baseStat) { const ws = weaponSpeed(it); s += `<div class="base">${it.baseStat} Damage${it.h2 ? ' · Two-Handed' : ''}${ws < 1 ? ' · Fast' : ws > 1 ? ' · Slow' : ''}</div>`; } else if (it.baseStat) s += `<div class="base">${it.baseStat} Armor</div>`; if (it.block) s += `<div class="base">${it.block}% Block</div>`; const keys = Object.keys(it.affixes).sort((a, b) => (AFFIX_CAT_ORD[AFFIX_CAT[a]] || 5) - (AFFIX_CAT_ORD[AFFIX_CAT[b]] || 5)); for (const k of keys) s += `<div class="aff aff-${AFFIX_CAT[k] || 'util'}">+${it.affixes[k]} ${AFFIXES[k].label}</div>`; if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) s += `<div class="aff" style="color:#9f6aff">✦ +${it.enchant.val} ${AFFIXES[it.enchant.key].label} (enchant)</div>`; if (it.sockets && it.sockets.length) s += `<div class="aff aff-util">` + it.sockets.map(g => { if (!g) return '◯ (empty)'; const e = gemEff(it.slot, g); return `${GEMS[g.t].ico} +${e.vals[g.q]} ${AFFIXES[e.key].label}`; }).join(' · ') + `</div>`; return s; }
+function statBundle(it) { const b = {}; if (it.baseStat) b[it.slot === 'weapon' ? 'Damage' : 'Armor'] = (b[it.slot === 'weapon' ? 'Damage' : 'Armor'] || 0) + it.baseStat; if (it.block) b.Block = (b.Block || 0) + it.block; for (const k in it.affixes) { const l = AFFIXES[k] ? AFFIXES[k].label : k; b[l] = (b[l] || 0) + it.affixes[k]; } if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) { const l = AFFIXES[it.enchant.key].label; b[l] = (b[l] || 0) + (it.enchant.val || 0); } if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) { const l = AFFIXES[e.key].label; b[l] = (b[l] || 0) + e.vals[g.q]; } } } return b; }
 function tooltipHTML(it) {
   const eq = character.equipment[it.slot]; let html = `<div class="tname rc-${it.rarity}">${it.name}${it.upgrade ? ' <span style="color:#ffcf6a">+' + it.upgrade + '</span>' : ''}</div><div class="tslot rc-${it.rarity}">${RARITY_NAME[it.rarity] || it.rarity} · ${it.slot} · ilvl ${it.ilvl}${it.upgrade ? ' · +' + Math.round((upFactor(it) - 1) * 100) + '% upgraded' : ''}</div>${affixLines(it)}`;
   if (it.effect) html += `<div style="color:#ffcf6a;margin-top:4px">★ ${it.effectDesc}</div>`;
+  if (it.lock) html += `<div style="color:#9fd8ff;font-size:11px;margin-top:3px">🔒 Locked — protected from selling &amp; salvaging (right-click to unlock)</div>`;
   if (it.set) {
     const sd = SET_DEFS[it.set]; if (sd) {
       const owned = SLOTS.reduce((n, s) => n + (character.equipment[s] && character.equipment[s].set === it.set ? 1 : 0), 0); html += `<div style="color:#5ad65a;margin-top:6px">${sd.name} (${owned}/${sd.pieces.length})</div>`;
@@ -202,6 +239,7 @@ function charSheetHTML() {
   def += row('Mana Shield', pct((e.manaShield || 0) * 100));
   def += row('Life Regen', ((player.hpRegen || 0) * 1000).toFixed(1) + '/s');
   def += row('Dodge', pct((e.dodge || 0) * 100));
+  def += row('Block', pct((e.block || 0) * 100));
   def += row('Damage Reduction', pct((e.flatDR || 0) * 100));
   // Resistances — effective = element + all, capped at 75%
   const ar = e.allRes || 0, rres = k => Math.min(75, Math.round((e[k] || 0) + ar));
@@ -211,7 +249,7 @@ function charSheetHTML() {
   util += row('Move Speed', '+' + pct((e.movespeed || 0) * 100));
   util += row('Mana Leech', pct((e.manaleech || 0) * 100));
   util += row('Mana Regen', ((player.mpRegen || 0) * 1000).toFixed(1) + '/s');
-  util += row('Magic Find', '+' + pct((lootLuck || 0) * 100));
+  util += row('Magic Find', '+' + pct(((zoneLuck || 0) + (lootLuck || 0)) * 100));
   util += row('Gold Find', '+' + pct((player.goldFind || 0) * 100));
   util += row('STR', player.str) + row('DEX', player.dex) + row('VIT', player.vit) + row('ENG', player.eng);
   return `<div class="statname"><b>${escapeHtml(character.name)}</b> · Level ${player.level}</div>` + sec('Offense', off) + sec('Defense', def) + sec('Resistances', res) + sec('Utility', util);
@@ -237,9 +275,9 @@ function gemTipHTML(t, q, n) {
 }
 function renderInv() {
   const eg = document.getElementById('equipGrid'); eg.innerHTML = '';
-  for (const s of SLOTS) { const it = character.equipment[s]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.style.gridArea = s; c.innerHTML = `<span class="lbl">${s}</span>${it ? SLOT_ICON[s] : '<span style="opacity:.25">' + SLOT_ICON[s] + '</span>'}`; if (it) { bindTip(c, it); c.onclick = () => smithOpen ? selectSmithItem(it) : enchantOpen ? selectEnchantItem(it) : jewelerOpen && jewelerTab === 'socket' ? selectSocketItem(it) : unequip(s); if ((smithOpen && smithPick === it) || (enchantOpen && enchantPick === it) || (jewelerOpen && jewelerTab === 'socket' && socketPick === it)) c.classList.add('smithSel'); } eg.appendChild(c); }
+  for (const s of SLOTS) { const it = character.equipment[s]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.style.gridArea = s; c.innerHTML = `<span class="lbl">${s}</span>${it ? SLOT_ICON[s] : '<span style="opacity:.25">' + SLOT_ICON[s] + '</span>'}${it && it.lock ? '<span style="position:absolute;top:1px;right:3px;font-size:9px">🔒</span>' : ''}`; if (it) { bindTip(c, it); c.onclick = () => smithOpen ? selectSmithItem(it) : enchantOpen ? selectEnchantItem(it) : jewelerOpen && jewelerTab === 'socket' ? selectSocketItem(it) : unequip(s); c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; showMsg(it.lock ? '🔒 ' + it.name + ' locked' : it.name + ' unlocked'); renderInv(); saveProgress(false); }; if ((smithOpen && smithPick === it) || (enchantOpen && enchantPick === it) || (jewelerOpen && jewelerTab === 'socket' && socketPick === it)) c.classList.add('smithSel'); } eg.appendChild(c); }
   document.getElementById('charStats').innerHTML = charSheetHTML();
-  const ig = document.getElementById('invGrid'); ig.innerHTML = ''; for (let i = 0; i < character.invMax; i++) { const it = character.inventory[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); if (it) { const up = itemScore(it) > itemScore(character.equipment[it.slot]); c.innerHTML = (up ? '<span class="upg">▲</span>' : '') + SLOT_ICON[it.slot]; if (up) c.classList.add('isupg'); bindTip(c, it); c.onclick = () => smithOpen ? selectSmithItem(it) : enchantOpen ? selectEnchantItem(it) : jewelerOpen && jewelerTab === 'socket' ? selectSocketItem(it) : equipFromInv(i); if ((smithOpen && smithPick === it) || (enchantOpen && enchantPick === it) || (jewelerOpen && jewelerTab === 'socket' && socketPick === it)) c.classList.add('smithSel'); } ig.appendChild(c); }
+  const ig = document.getElementById('invGrid'); ig.innerHTML = ''; for (let i = 0; i < character.invMax; i++) { const it = character.inventory[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); if (it) { const up = itemScore(it) > itemScore(character.equipment[it.slot]); c.innerHTML = (up ? '<span class="upg">▲</span>' : '') + SLOT_ICON[it.slot] + (it.lock ? '<span style="position:absolute;top:1px;right:3px;font-size:9px">🔒</span>' : ''); if (up) c.classList.add('isupg'); bindTip(c, it); c.onclick = () => smithOpen ? selectSmithItem(it) : enchantOpen ? selectEnchantItem(it) : jewelerOpen && jewelerTab === 'socket' ? selectSocketItem(it) : equipFromInv(i); c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; showMsg(it.lock ? '🔒 ' + it.name + ' locked' : it.name + ' unlocked'); renderInv(); if (vendorOpen) renderVendor(); saveProgress(false); }; if ((smithOpen && smithPick === it) || (enchantOpen && enchantPick === it) || (jewelerOpen && jewelerTab === 'socket' && socketPick === it)) c.classList.add('smithSel'); } ig.appendChild(c); }
   const gg = document.getElementById('gemGrid');
   if (gg) {
     gg.innerHTML = ''; const gems = character.gems || {}; const keys = Object.keys(gems).filter(k => gems[k] > 0).sort();
@@ -248,7 +286,16 @@ function renderInv() {
   }
   goldTxt.textContent = player.gold + ' g'; const _dt = document.getElementById('dustTxt'); if (_dt) _dt.textContent = (character.materials || 0) + ' Dust'; /* currency bar lives at the bottom of the inventory now */
 }
-function equipFromInv(i) { const it = character.inventory[i]; if (!it) return; const prev = character.equipment[it.slot]; character.equipment[it.slot] = it; character.inventory.splice(i, 1); if (prev) character.inventory.push(prev); recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false); }
+function equipFromInv(i) {
+  const it = character.inventory[i]; if (!it) return; const eq = character.equipment;
+  // two-handed exclusion: a 2H weapon and an offhand can never coexist
+  if (it.slot === 'offhand' && eq.weapon && eq.weapon.h2) { showMsg('Your two-handed weapon needs both hands'); return; }
+  if (it.slot === 'weapon' && it.h2 && eq.offhand) {
+    if (character.inventory.length >= character.invMax) { showMsg('Bag full — stow your offhand first'); return; }
+    character.inventory.push(eq.offhand); eq.offhand = null; showMsg('Offhand stowed');
+  }
+  const prev = eq[it.slot]; eq[it.slot] = it; character.inventory.splice(i, 1); if (prev) character.inventory.push(prev); recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false);
+}
 function unequip(s) { const it = character.equipment[s]; if (!it) return; if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.equipment[s] = null; recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false); }
 let ptT = { x: 0, y: 0, s: 1 };
 const PT_NAMES = { str: 'Strength', dex: 'Dexterity', vit: 'Vitality', eng: 'Energy', hp: 'Life', mp: 'Mana', dmg: 'Damage', armor: 'Armor', crit: 'Crit Chance', meleePct: '% Melee Damage', spellPct: '% Spell Damage', armorPct: '% Armor', hpPct: '% Life', allskills: 'to All Skills', pierce: 'Pierce', lifesteal: 'Life Leech', movespeed: '% Move Speed', thorns: 'Thorns' };

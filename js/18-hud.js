@@ -1,8 +1,18 @@
 function drawMinimap() {
   mctx.clearRect(0, 0, 170, 170); mctx.save(); mctx.beginPath(); mctx.arc(MMR, MMR, MMR, 0, 7); mctx.clip();
   mctx.fillStyle = 'rgba(10,8,6,0.4)'; mctx.fillRect(0, 0, 170, 170);
+  // dungeon room walls — the radar reads as a map
+  if (zone === 'dungeon' && dungeonLayout) {
+    mctx.strokeStyle = 'rgba(200,180,140,0.55)'; mctx.lineWidth = 1.5; mctx.beginPath();
+    for (const w of dungeonLayout.walls) {
+      const x1 = (w.x1 - player.x) * MM_SCALE, z1 = (w.z1 - player.z) * MM_SCALE, x2 = (w.x2 - player.x) * MM_SCALE, z2 = (w.z2 - player.z) * MM_SCALE;
+      if (Math.min(x1 * x1 + z1 * z1, x2 * x2 + z2 * z2) > MMR * MMR * 1.5) continue;
+      mctx.moveTo(MMR + x1, MMR + z1); mctx.lineTo(MMR + x2, MMR + z2);
+    }
+    mctx.stroke();
+  }
   // interactables
-  const colMap = { vendor: '#9f6aff', stash: '#ffd24d', smith: '#ff8a3a', wild: '#6affa0', town: '#9f6aff', cave: '#ff8a3a', deeper: '#c04aff', cauldron: '#55ffa0', towngate: '#ffd24d', waypoint: '#6ab0ff', wildnext: '#bcd0ff', wildprev: '#9ad86a' };
+  const colMap = { vendor: '#9f6aff', stash: '#ffd24d', smith: '#ff8a3a', wild: '#6affa0', town: '#9f6aff', cave: '#ff8a3a', deeper: '#c04aff', cauldron: '#55ffa0', towngate: '#ffd24d', waypoint: '#6ab0ff', wildnext: '#bcd0ff', wildprev: '#9ad86a', chest: '#ffd24d' };
   for (const o of interactables()) { let col = colMap[o.kind] || '#fff'; if (o.kind === 'towngate') col = (character && character.discovered && character.discovered[o.area]) ? '#ffd24d' : '#777'; mmDot(o.x, o.z, col, o.kind === 'towngate' ? 4.5 : 3.5); }
   // loot
   for (const l of loots) mmDot(l.x, l.z, l.kind === 'item' ? '#' + RCOL[l.payload.rarity].toString(16).padStart(6, '0') : '#ffe27a', 2);
@@ -28,7 +38,7 @@ let _gHpPct = NaN, _gHpN = -1, _gHpMax = -1, _gMpPct = NaN, _gMpN = -1, _gMpMax 
 let _promptHtml = null, _bbShown = null, _bbName = '', _bbPct = -1;
 function _resetHudCache() { _gHpPct = NaN; _gHpN = -1; _gHpMax = -1; _gMpPct = NaN; _gMpN = -1; _gMpMax = -1; _gXpPct = NaN; _gHpP = -1; _gMpP = -1; _promptHtml = null; _bbShown = null; _bbName = ''; _bbPct = -1; }
 /* Phase 1: hoisted out of the per-frame prompt block (was a ~13-key object literal allocated every frame while near an interactable). Dynamic labels (deeper/towngate) computed inline. */
-const PROMPT_LABELS = { vendor: 'trade with the Merchant', stash: 'open your Stash', smith: 'upgrade gear at the Smith', enchanter: 'enchant gear at the Enchanter', gambler: 'gamble with the Gambler', jeweler: 'visit the Jeweler', premiumVendor: 'trade with the Exotic Merchant', wild: 'enter the Wilderness', town: 'return to Town', cave: 'descend into the Dungeon', waypoint: 'use the Waypoint (fast travel)', cauldron: 'refill Health & Mana potions', shrine: 'commune with the Shrine' };
+const PROMPT_LABELS = { vendor: 'trade with the Merchant', stash: 'open your Stash', smith: 'upgrade gear at the Smith', enchanter: 'enchant gear at the Enchanter', gambler: 'gamble with the Gambler', jeweler: 'visit the Jeweler', premiumVendor: 'trade with the Exotic Merchant', wild: 'enter the Wilderness', town: 'return to Town', cave: 'descend into the Dungeon', waypoint: 'use the Waypoint (fast travel)', cauldron: 'refill Health & Mana potions', shrine: 'commune with the Shrine', chest: 'open the Treasure Chest' };
 function updateGlobes() {
   const hpPct = player.hp / player.hpMax * 100; if (hpPct !== _gHpPct) { _gHpPct = hpPct; healthFill.style.height = hpPct + '%'; }
   const hpN = Math.round(player.hp); if (hpN !== _gHpN || player.hpMax !== _gHpMax) { _gHpN = hpN; _gHpMax = player.hpMax; hpTxt.textContent = hpN + '/' + player.hpMax; }
@@ -51,6 +61,24 @@ function unlockAbility(id) {
   if ((character.abilityPoints || 0) < 1) { showMsg('Not enough ability points'); return; }
   character.skills[id] = 1; character.abilityPoints -= 1;
   recompute(); renderSkillbar(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
+}
+// Spend ability points to raise an active past rank 1 (cost = current rank; capped at the skill's maxRank).
+function rankUpAbility(id) {
+  const def = SKILLDEFS[id]; if (!def || def.type !== 'active') return; const cur = character.skills[id] || 0;
+  if (cur < 1 || cur >= (def.maxRank || 1)) return;
+  const cost = rankUpCost(cur);
+  if ((character.abilityPoints || 0) < cost) { showMsg('Needs ' + cost + ' ability point' + (cost > 1 ? 's' : '')); return; }
+  character.skills[id] = cur + 1; character.abilityPoints -= cost;
+  recompute(); renderSkillbar(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
+}
+// Techniques: the classic trained passives — rankable at a flat 1 point per rank.
+function rankUpTech(id) {
+  const def = SKILLDEFS[id]; if (!def || def.type !== 'passive') return; const cur = character.skills[id] || 0;
+  if (cur >= (def.maxRank || 1)) { showMsg('Already mastered'); return; }
+  if (player.level < (def.req || 1)) { showMsg('Requires level ' + (def.req || 1)); return; }
+  if ((character.abilityPoints || 0) < 1) { showMsg('Not enough ability points'); return; }
+  character.skills[id] = cur + 1; character.abilityPoints -= 1;
+  recompute(); renderAbilities(); updatePips(); sfx('level'); saveProgress(false);
 }
 // Assign a skill to a bar slot (1..5; slot 0 is the fixed basic attack). Dedupes across slots; RMB (1) drives activeSkillId.
 function setLoadoutSlot(slot, id) {
@@ -127,6 +155,23 @@ function renderSkillbar() {
 }
 function renderSkillCd() { document.querySelectorAll('.cd').forEach(el => { const id = el.dataset.id; const def = SKILLDEFS[id]; const cd = skillCd(def, id); const rem = cd - (now() - (_cd[id] || -9999)); if (rem > 50) { el.style.display = 'flex'; const prog = clamp(1 - rem / cd, 0, 1) * 360; el.style.background = `conic-gradient(transparent ${prog}deg, rgba(0,0,0,.7) ${prog}deg)`; el.textContent = (rem / 1000).toFixed(1); } else el.style.display = 'none'; }); }
 function showMsg(t) { const m = document.getElementById('msg'); m.textContent = t; m.style.opacity = 1; clearTimeout(m._t); m._t = setTimeout(() => m.style.opacity = 0, 1400); }
+/* ---- buff/debuff timer chips (next to the potion indicator). Rebuilt on the 66ms UI cadence behind a
+   composed-string dirty check (renderObjective pattern) so idle frames cost one string compare. ---- */
+let _buffStr = null;
+function renderBuffChips() {
+  const el = document.getElementById('buffChips'); if (!el) return;
+  const t = now(); const parts = []; const B = player.buffs;
+  if (B.cryUntil > t) parts.push('📢 ' + Math.ceil((B.cryUntil - t) / 1000) + 's');
+  if (B.empUntil > t) parts.push('✨ ' + Math.ceil((B.empUntil - t) / 1000) + 's');
+  if (B.fleetUntil > t) parts.push('💨 ' + Math.ceil((B.fleetUntil - t) / 1000) + 's');
+  if (B.stoneUntil > t) parts.push('🪨 ' + Math.ceil((B.stoneUntil - t) / 1000) + 's');
+  if (B.greedUntil > t) parts.push('💰 ' + Math.ceil((B.greedUntil - t) / 1000) + 's');
+  if (B.frenzyUntil > t) parts.push('💢 ' + Math.ceil((B.frenzyUntil - t) / 1000) + 's');
+  if (player.chillUntil > t) parts.push('❄ ' + Math.ceil((player.chillUntil - t) / 1000) + 's');
+  if (player.statuses) { for (const s of player.statuses) { const ico = s.type === 'burn' ? '🔥' : s.type === 'bleed' ? '🩸' : s.type === 'poison' ? '☠' : s.type === 'stun' ? '💫' : null; if (ico) parts.push(ico + ' ' + Math.max(1, Math.ceil(s.dur / 1000)) + 's'); } }
+  const str = parts.join('|'); if (str === _buffStr) return; _buffStr = str;
+  el.innerHTML = parts.map(p => `<span style="background:rgba(20,14,8,.8);border:1px solid #4a3a28;border-radius:6px;padding:3px 8px;color:#e6d8a0;font-size:12px;text-shadow:0 0 4px #000">${p}</span>`).join('');
+}
 const floatLayer = document.createElement('div'); floatLayer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden;'; document.body.appendChild(floatLayer);
 /* Phase 1: pooled labels — was innerHTML='' + createElement per float/elite/remote every 33ms (full DOM
    teardown + element GC). Now a persistent pool of reused <div>s: overwrite text/cssText on existing nodes,
@@ -142,8 +187,8 @@ function renderFloats() {
       const el = _floatEl(n++); el.className = 'float'; el.textContent = f.txt; el.style.cssText = `left:${sx}px;top:${sy}px;transform:translate(-50%,-50%) translate(${f.dx * age / 55}px,${-rise}px) scale(${sc.toFixed(2)});color:${f.col};font-size:${crit ? 22 : 15}px;opacity:${op};text-shadow:0 0 5px #000,0 1px 2px #000${crit ? ',0 0 12px ' + f.col : ''};`;
     }
   }
-  for (const m of monsters) { if (!m.elite && !m.showName) continue; tmpV.set(m.x, m.r * 2.6 + 1.6, m.z); tmpV.project(camera); if (tmpV.z > 1) continue; const sx = (tmpV.x * 0.5 + 0.5) * innerWidth, sy = (-tmpV.y * 0.5 + 0.5) * innerHeight; const col = '#' + (m.nameCol != null ? m.nameCol : ELITE_MODS[m.elite[0]].col).toString(16).padStart(6, '0'); const lab = _floatEl(n++); lab.className = ''; lab.textContent = m.name; lab.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;transform:translate(-50%,-50%);color:${col};font:bold 12px Georgia;text-shadow:0 0 4px #000,0 0 4px #000;white-space:nowrap;`; }
-  if (typeof NET !== 'undefined' && NET.connected) { for (const [, r] of NET.remotes) { if (!r.mesh.visible) continue; tmpV.set(r.x, 5.4, r.z); tmpV.project(camera); if (tmpV.z > 1) continue; const sx = (tmpV.x * 0.5 + 0.5) * innerWidth, sy = (-tmpV.y * 0.5 + 0.5) * innerHeight; const lab = _floatEl(n++); lab.className = ''; lab.textContent = (r.name || 'Player') + ' · Lv' + (r.level || 1); lab.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;transform:translate(-50%,-50%);color:#9fd8ff;font:bold 12px Georgia;text-shadow:0 0 4px #000,0 0 5px #000;white-space:nowrap;`; } }
+  for (const m of monsters) { if (!m.elite && !m.showName) continue; tmpV.set(m.x, m.r * 2.6 + 1.6, m.z); tmpV.project(camera); if (tmpV.z > 1) continue; const sx = (tmpV.x * 0.5 + 0.5) * innerWidth, sy = (-tmpV.y * 0.5 + 0.5) * innerHeight; const col = '#' + (m.nameCol != null ? m.nameCol : m.elite ? ELITE_MODS[m.elite[0]].col : 0xffffff).toString(16).padStart(6, '0'); /* showName-without-nameCol must never deref a null elite list */ const lab = _floatEl(n++); lab.className = ''; lab.textContent = m.name; lab.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;transform:translate(-50%,-50%);color:${col};font:bold 12px Georgia;text-shadow:0 0 4px #000,0 0 4px #000;white-space:nowrap;`; }
+  if (typeof NET !== 'undefined' && NET.connected) { for (const [, r] of NET.remotes) { if (!r.mesh.visible) continue; tmpV.set(r.x, 5.4, r.z); tmpV.project(camera); if (tmpV.z > 1) continue; const sx = (tmpV.x * 0.5 + 0.5) * innerWidth, sy = (-tmpV.y * 0.5 + 0.5) * innerHeight; const lab = _floatEl(n++); lab.className = ''; lab.textContent = (r.name || 'Player') + ' · Lv' + (r.level || 1); lab.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;transform:translate(-50%,-50%);color:#9fd8ff;font:bold 12px Georgia;text-shadow:0 0 4px #000,0 0 5px #000;white-space:nowrap;`; const pct = clamp((r.hp || 0) / (r.hpMax || 1) * 100, 0, 100); const bar = _floatEl(n++); bar.className = ''; bar.textContent = ''; bar.style.cssText = `position:absolute;left:${sx}px;top:${sy + 10}px;transform:translate(-50%,-50%);width:46px;height:4px;border:1px solid rgba(0,0,0,.8);border-radius:2px;background:linear-gradient(90deg,#6fdc8c ${pct}%,rgba(10,10,14,.72) ${pct}%);`; } }
   for (let i = n; i < _floatPool.length; i++) { if (_floatPool[i].style.display !== 'none') _floatPool[i].style.display = 'none'; }
 }
 

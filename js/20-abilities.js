@@ -27,10 +27,19 @@ function renderAbilities() {
     else { cls += ' locked'; tag = `<span class="ct">Lv ${req}</span>`; }
     h += `<div class="${cls}" data-skill="${id}">${def.ico} ${def.name}${tag}</div>`;
   }
-  h += '</div><div id="runeWrap"></div>';
+  h += '</div>';
+  // Techniques: the classic trained passives (pre-v49 skill system, still consumed by recompute) — finally rankable again
+  const techs = Object.keys(SKILLDEFS).filter(tid => SKILLDEFS[tid].type === 'passive');
+  if (techs.length) {
+    h += '<div class="ptsNote" style="margin-top:10px">Techniques — trained passives · 1 pt / rank</div><div class="abilPick">';
+    for (const tid of techs) { const td = SKILLDEFS[tid]; const r = character.skills[tid] || 0, max = td.maxRank || 1; const lockd = player.level < (td.req || 1); h += `<div class="abilChip${r >= max ? ' on' : lockd ? ' locked' : r > 0 ? ' on' : ' unlock'}" data-tech="${tid}">${td.ico} ${td.name}<span class="ct">${lockd ? 'Lv ' + td.req : r + '/' + max}</span></div>`; }
+    h += '</div>';
+  }
+  h += '<div id="runeWrap"></div>';
   host.innerHTML = h;
   host.querySelectorAll('.abilSlot').forEach(el => { const i = +el.dataset.slot; el.onclick = () => { if (i === 0) { _runeViewId = 'strike'; } else { _abilSlotSel = i; if (character.loadout[i]) _runeViewId = character.loadout[i]; } renderAbilities(); }; });
-  host.querySelectorAll('.abilChip').forEach(el => { const id = el.dataset.skill; el.onmouseenter = ev => { tooltip.innerHTML = skillTip(id); tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => { if ((character.skills[id] || 0) >= 1) { setLoadoutSlot(_abilSlotSel, id); _runeViewId = id; saveProgress(false); renderAbilities(); } else { unlockAbility(id); } }; });
+  host.querySelectorAll('.abilChip[data-skill]').forEach(el => { const id = el.dataset.skill; el.onmouseenter = ev => { tooltip.innerHTML = skillTip(id); tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => { if ((character.skills[id] || 0) >= 1) { setLoadoutSlot(_abilSlotSel, id); _runeViewId = id; saveProgress(false); renderAbilities(); } else { unlockAbility(id); } }; });
+  host.querySelectorAll('.abilChip[data-tech]').forEach(el => { const tid = el.dataset.tech; const td = SKILLDEFS[tid]; el.onmouseenter = ev => { const r = character.skills[tid] || 0; tooltip.innerHTML = `<div class="tname">${td.ico} ${td.name}</div><div class="tslot">Technique · rank ${r}/${td.maxRank || 1}</div><div style="margin-top:4px">${td.desc}</div><div style="color:#8a7a5a;font-size:11px;margin-top:3px">Click to train — 1 ability point per rank.</div>`; tooltip.style.display = 'block'; moveTip(ev); }; el.onmousemove = moveTip; el.onmouseleave = () => tooltip.style.display = 'none'; el.onclick = () => rankUpTech(tid); });
   const rr = document.getElementById('runeReset'); if (rr) rr.onclick = refundRunes;
   renderRuneView();
 }
@@ -39,7 +48,10 @@ function renderRuneView() {
   if (!tree) { wrap.innerHTML = `<div class="abilHint" style="text-align:center;padding:20px">${id === 'strike' ? 'Basic attack — always on Left-click, no runes to spend.' : 'Select a skill to view its rune tree.'}</div>`; return; }
   if ((character.skills[id] || 0) < 1) { wrap.innerHTML = `<div class="abilHint" style="text-align:center;padding:20px">Unlock this ability to spend runes on it.</div>`; return; }
   const def = SKILLDEFS[id]; rT = { x: 0, y: -20, s: 1 };
-  wrap.innerHTML = `<div class="ptsNote" style="margin:8px 0 4px">${def.ico} ${def.name} — rune tree</div><div id="rVp" style="position:relative;width:100%;height:calc(100vh - 400px);min-height:240px;overflow:hidden;border:1px solid #2a2218;border-radius:8px;background:radial-gradient(circle at 50% 45%,#161109,#080604);cursor:grab"><svg id="rSvg" width="100%" height="100%" viewBox="-200 -150 400 380"><defs><filter id="rg" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g id="rG"></g></svg></div>`;
+  const curR = character.skills[id] || 0, maxR = def.maxRank || 1, upCost = rankUpCost(curR);
+  const rankBit = maxR > 1 ? ` <span style="color:#8a7a5a">· Rank ${curR}/${maxR}</span>` + (curR < maxR ? ` <span class="rbtn${(character.abilityPoints || 0) >= upCost ? '' : ' dis'}" id="rankUpBtn" style="margin-left:8px;font-size:11px;padding:2px 8px">Rank up · ${upCost} pt${upCost > 1 ? 's' : ''}</span>` : ' <span style="color:#5ad65a">MAX</span>') : '';
+  wrap.innerHTML = `<div class="ptsNote" style="margin:8px 0 4px">${def.ico} ${def.name} — rune tree${rankBit}</div><div id="rVp" style="position:relative;width:100%;height:calc(100vh - 400px);min-height:240px;overflow:hidden;border:1px solid #2a2218;border-radius:8px;background:radial-gradient(circle at 50% 45%,#161109,#080604);cursor:grab"><svg id="rSvg" width="100%" height="100%" viewBox="-200 -150 400 380"><defs><filter id="rg" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g id="rG"></g></svg></div>`;
+  const rub = document.getElementById('rankUpBtn'); if (rub) rub.onclick = () => rankUpAbility(id);
   buildRuneSvg(id); attachRuneEvents();
 }
 function applyR() { const g = document.getElementById('rG'); if (g) g.setAttribute('transform', `scale(${rT.s}) translate(${rT.x} ${rT.y})`); }
@@ -97,30 +109,45 @@ function refundRunes() {
   let refunded = 0; for (const sid in (character.skillRunes || {})) { const tree = SKILL_RUNES[sid]; if (!tree) continue; for (const nid in character.skillRunes[sid]) { const node = tree.nodes[nid]; if (node) refunded += (character.skillRunes[sid][nid] || 0) * node.cost; } }
   character.skillRunes = {}; character.abilityPoints = (character.abilityPoints || 0) + refunded; invalidateRunes(); renderSkillbar(); updatePips(); renderAbilities(); showMsg('Refunded ' + refunded + ' ability point' + (refunded === 1 ? '' : 's')); saveProgress(false);
 }
-let vendorStock = [], vendorTab = 'buy', vendorTier = 1, vendorStockTier = 1;
-function refreshVendor(tier) { tier = tier || 1; vendorStockTier = tier; vendorStock = []; const bump = (tier - 1) * 7, q = tier >= 2 ? 0.35 : 0; for (let i = 0; i < 6; i++) vendorStock.push(rollItem(Math.max(1, player.level + randi(-1, 2)) + bump, null, q)); }
+let vendorStock = [], vendorTab = 'buy', vendorTier = 1, vendorStockTier = 1, _relicOfDay = null;
+function refreshVendor(tier) { tier = tier || 1; vendorStockTier = tier; vendorStock = []; const bump = (tier - 1) * 7, q = tier >= 2 ? 0.35 : 0; for (let i = 0; i < 6; i++) vendorStock.push(rollItem(Math.max(1, player.level + randi(-1, 2)) + bump, null, q)); if (tier >= 2) _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2)); }
+function _giveBought(it) { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return false; } character.inventory.push(it); showMsg(it.name + ' acquired'); if (invOpen) renderInv(); updatePips(); return true; }
 function renderVendor() {
   if (invOpen) renderInv(); /* keep the paired inventory pane in sync after a buy/sell */
   const body = document.getElementById('vendorBody'); body.innerHTML = `<div style="color:#ffe27a;margin-bottom:10px">Your gold: ${player.gold} <span style="color:#b9a6ff">· ✦ ${character.materials || 0} Dust</span></div>`;
   if (vendorTier >= 2) body.innerHTML += `<div style="color:#ff6ad0;margin-bottom:8px;font-size:13px">✦ Exotic wares — rarer, higher item level, premium prices.</div>`;
   if (vendorTab === 'buy') {
     body.innerHTML += `<div style="color:#9a8a6a;margin-bottom:8px;font-size:13px">Need potions? Visit the 🔥 cauldron in town to refill for free.</div>`;
+    if (vendorTier >= 2) { /* the Exotic Merchant is the Dust shop — the sink the salvage economy feeds. NOTE: appended via createElement AFTER every innerHTML+= write (innerHTML re-parses the body and would strip these handlers). */
+      const dust = character.materials || 0;
+      if (!_relicOfDay) _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2));
+      const caches = [
+        { ico: '🟠', name: 'Exotic Cache', sub: 'a random unique', cost: 120, act: () => _giveBought(buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + randi(1, 3)))) },
+        { ico: '🟢', name: 'Set Cache', sub: 'a random set piece', cost: 80, act: () => { const sid = choice(Object.keys(SET_DEFS)); return _giveBought(buildSetItem(sid, choice(SET_DEFS[sid].pieces), Math.max(3, player.level + randi(1, 3)))); } },
+        { ico: '💎', name: 'Gem Cache', sub: 'three quality gems', cost: 45, act: () => { character.gems = character.gems || {}; for (let i = 0; i < 3; i++) { const g = choice(GEM_KEYS) + ':' + randi(1, 2); character.gems[g] = (character.gems[g] || 0) + 1; } showMsg('Three gems pocketed'); if (invOpen) renderInv(); return true; } },
+      ];
+      caches.forEach((c, i) => { const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${c.ico}</div><div class="rname">${c.name} <span style="color:#8a7a5a;font-size:11px">(${c.sub})</span></div><div class="rprice" style="color:#b9a6ff">${c.cost}✦</div><div class="rbtn${dust >= c.cost ? '' : ' dis'}" data-cache="${i}">Buy</div>`; row.querySelector('.rbtn').onclick = () => { if ((character.materials || 0) < c.cost) return; if (!c.act()) return; character.materials -= c.cost; sfx('gold'); renderVendor(); updatePips(); saveProgress(false); }; body.appendChild(row); });
+      { const row = document.createElement('div'); row.className = 'row'; row.style.background = 'rgba(40,20,40,.4)'; row.innerHTML = `<div class="ric">☀️</div><div class="rname rc-unique">Relic of the Day: ${_relicOfDay.name} <span style="color:#8a7a5a;font-size:11px">(restock to reroll)</span></div><div class="rprice" style="color:#b9a6ff">200✦</div><div class="rbtn${(character.materials || 0) >= 200 ? '' : ' dis'}" data-relic="1">Buy</div>`; bindTip(row.querySelector('.rname'), _relicOfDay); row.querySelector('.rbtn').onclick = () => { if ((character.materials || 0) < 200 || !_relicOfDay) return; if (!_giveBought(_relicOfDay)) return; character.materials -= 200; _relicOfDay = buildUnique(choice(UNIQUE_DEFS), Math.max(3, player.level + 2)); sfx('gold'); renderVendor(); updatePips(); saveProgress(false); }; body.appendChild(row); }
+    }
     const reCost = 40 + player.level * 8; const reRow = document.createElement('div'); reRow.className = 'row'; reRow.innerHTML = `<div class="ric">🔄</div><div class="rname">Restock wares <span style="color:#8a7a5a;font-size:11px">(reroll the merchant's items)</span></div><div class="rprice">${reCost} g</div><div class="rbtn${player.gold >= reCost ? '' : ' dis'}" id="restockBtn">Reroll</div>`; body.appendChild(reRow);
     document.getElementById('restockBtn').onclick = () => { if (player.gold < reCost) return; player.gold -= reCost; refreshVendor(vendorTier); goldTxt.textContent = player.gold + ' g'; renderVendor(); saveProgress(false); }; /* pass the active tier so a paid reroll at an Exotic (tier ≥ 2) merchant keeps its premium stock instead of silently dropping to tier 1 */
     vendorStock.forEach((it, idx) => { const price = buyPrice(it); const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${SLOT_ICON[it.slot]}</div><div class="rname rc-${it.rarity}">${it.name}</div><div class="rprice">${price} g</div><div class="rbtn${player.gold >= price && character.inventory.length < character.invMax ? '' : ' dis'}" data-buy="${idx}">Buy</div>`; bindTip(row.querySelector('.rname'), it); body.appendChild(row); });
     body.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const idx = +b.dataset.buy; const it = vendorStock[idx]; const price = buyPrice(it); if (player.gold < price || character.inventory.length >= character.invMax) return; player.gold -= price; character.inventory.push(it); vendorStock.splice(idx, 1); goldTxt.textContent = player.gold + ' g'; renderVendor(); updatePips(); saveProgress(false); });
   } else if (vendorTab === 'sell') {
     if (!character.inventory.length) body.innerHTML += `<div style="color:#6a5a44">Your backpack is empty.</div>`;
-    const isJunk = it => it.rarity === 'common' || it.rarity === 'magic'; const junkTotal = character.inventory.filter(isJunk).reduce((s, it) => s + sellValue(it), 0), allTotal = character.inventory.reduce((s, it) => s + sellValue(it), 0), junkCnt = character.inventory.filter(isJunk).length;
-    const junkDust = character.inventory.filter(isJunk).reduce((s, it) => s + dustValue(it), 0), allDust = character.inventory.reduce((s, it) => s + dustValue(it), 0);
+    /* selling pays GOLD ONLY — Dust comes from salvaging at the Smith, so the two currencies have distinct
+       faucets and salvage is never strictly dominated. Locked (🔒) items are excluded from every sell path. */
+    const isJunk = it => (it.rarity === 'common' || it.rarity === 'magic') && !it.lock;
+    const sellable = character.inventory.filter(it => !it.lock);
+    const junkTotal = character.inventory.filter(isJunk).reduce((s, it) => s + sellValue(it), 0), allTotal = sellable.reduce((s, it) => s + sellValue(it), 0), junkCnt = character.inventory.filter(isJunk).length;
     if (character.inventory.length) {
       const bar = document.createElement('div'); bar.className = 'row'; bar.style.background = 'rgba(40,30,16,.55)';
-      bar.innerHTML = `<div class="rname" style="flex:1">Bulk sell <span style="color:#8a7a5a;font-size:11px">(also salvages into ✦ Dust)</span></div><div class="rbtn${junkCnt ? '' : ' dis'}" id="sellJunk">Sell Junk (${junkTotal}g · ${junkDust}✦)</div><div class="rbtn${allTotal ? '' : ' dis'}" id="sellAll" style="margin-left:6px;border-color:#7a3a28">Sell All (${allTotal}g · ${allDust}✦)</div>`; body.appendChild(bar);
-      const sj = document.getElementById('sellJunk'); if (sj) sj.onclick = () => { if (!junkCnt) return; player.gold += junkTotal; character.materials = (character.materials || 0) + junkDust; character.inventory = character.inventory.filter(it => !isJunk(it)); goldTxt.textContent = player.gold + ' g'; showMsg('Salvaged junk: +' + junkTotal + 'g · +' + junkDust + '✦'); renderVendor(); updatePips(); saveProgress(false); };
-      const sa = document.getElementById('sellAll'); if (sa) sa.onclick = () => { if (!allTotal) return; if (!confirm('Sell ALL ' + character.inventory.length + ' backpack items for ' + allTotal + 'g + ' + allDust + ' Dust?\nThis includes rare, set and unique gear.')) return; player.gold += allTotal; character.materials = (character.materials || 0) + allDust; character.inventory = []; goldTxt.textContent = player.gold + ' g'; showMsg('Salvaged all: +' + allTotal + 'g · +' + allDust + '✦'); renderVendor(); updatePips(); saveProgress(false); };
+      bar.innerHTML = `<div class="rname" style="flex:1">Bulk sell <span style="color:#8a7a5a;font-size:11px">(🔒 locked items are kept · salvage at the Smith for ✦)</span></div><div class="rbtn${junkCnt ? '' : ' dis'}" id="sellJunk">Sell Junk (${junkTotal}g)</div><div class="rbtn${allTotal ? '' : ' dis'}" id="sellAll" style="margin-left:6px;border-color:#7a3a28">Sell All (${allTotal}g)</div>`; body.appendChild(bar);
+      const sj = document.getElementById('sellJunk'); if (sj) sj.onclick = () => { if (!junkCnt) return; player.gold += junkTotal; character.inventory = character.inventory.filter(it => !isJunk(it)); goldTxt.textContent = player.gold + ' g'; showMsg('Sold junk: +' + junkTotal + 'g'); renderVendor(); updatePips(); saveProgress(false); };
+      const sa = document.getElementById('sellAll'); if (sa) sa.onclick = () => { if (!allTotal) return; if (!confirm('Sell ' + sellable.length + ' backpack items for ' + allTotal + 'g?\nThis includes rare, set and unique gear (locked items are kept).')) return; player.gold += allTotal; character.inventory = character.inventory.filter(it => it.lock); goldTxt.textContent = player.gold + ' g'; showMsg('Sold all: +' + allTotal + 'g'); renderVendor(); updatePips(); saveProgress(false); };
     }
-    character.inventory.forEach((it, idx) => { const price = sellValue(it); const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${SLOT_ICON[it.slot]}</div><div class="rname rc-${it.rarity}">${it.name}</div><div class="rprice">${price} g · ${dustValue(it)}✦</div><div class="rbtn" data-sell="${idx}">Sell</div>`; bindTip(row.querySelector('.rname'), it); body.appendChild(row); });
-    body.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => { const idx = +b.dataset.sell; const it = character.inventory[idx]; player.gold += sellValue(it); character.materials = (character.materials || 0) + dustValue(it); character.inventory.splice(idx, 1); goldTxt.textContent = player.gold + ' g'; renderVendor(); updatePips(); saveProgress(false); });
+    character.inventory.forEach((it, idx) => { const price = sellValue(it); const row = document.createElement('div'); row.className = 'row'; row.innerHTML = `<div class="ric">${SLOT_ICON[it.slot]}</div><div class="rname rc-${it.rarity}">${it.lock ? '🔒 ' : ''}${it.name}</div><div class="rprice">${price} g</div><div class="rbtn${it.lock ? ' dis' : ''}" data-sell="${idx}">Sell</div>`; bindTip(row.querySelector('.rname'), it); body.appendChild(row); });
+    body.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => { const idx = +b.dataset.sell; const it = character.inventory[idx]; if (!it || it.lock) return; player.gold += sellValue(it); character.inventory.splice(idx, 1); goldTxt.textContent = player.gold + ' g'; renderVendor(); updatePips(); saveProgress(false); });
   }
 }
 function setVendorTab(t) { if (t !== 'sell') t = 'buy'; vendorTab = t;['Buy', 'Sell'].forEach(n => document.getElementById('tab' + n).classList.toggle('on', t === n.toLowerCase())); renderVendor(); }
@@ -135,10 +162,22 @@ document.getElementById('jewelerTabReroll').onclick = () => setJewelerTab('rerol
 document.getElementById('jewelerTabSocket').onclick = () => setJewelerTab('socket');
 document.getElementById('jewelerTabCombine').onclick = () => setJewelerTab('combine');
 document.querySelectorAll('#invTabs .tab').forEach(el => el.onclick = () => setInvTab(el.dataset.invtab));
+let stashTab = 0; // 3 tabs × 80 slots — the stash stays ONE flat array; tabs are slice views (save-compatible)
 function renderStash() {
   const bp = document.getElementById('bpGrid'), st = document.getElementById('stGrid'); bp.innerHTML = ''; st.innerHTML = '';
-  for (let i = 0; i < character.invMax; i++) { const it = character.inventory[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] : ''; if (it) { bindTip(c, it); c.onclick = () => { if (character.stash.length >= character.stashMax) { showMsg('Stash full'); return; } character.stash.push(it); character.inventory.splice(i, 1); renderStash(); saveProgress(false); }; } bp.appendChild(c); }
-  for (let i = 0; i < character.stashMax; i++) { const it = character.stash[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] : ''; if (it) { bindTip(c, it); c.onclick = () => { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.stash.splice(i, 1); renderStash(); updatePips(); saveProgress(false); }; } st.appendChild(c); }
+  const lockBadge = it => (it && it.lock ? '<span style="position:absolute;top:1px;right:3px;font-size:9px">🔒</span>' : '');
+  const sn = document.getElementById('stashNote'); if (sn) { let gems = 0; for (const k in (character.gems || {})) gems += character.gems[k]; sn.textContent = `Stash ${character.stash.length}/${character.stashMax} · ✦ ${character.materials || 0} Dust · 💎 ${gems} gems`; }
+  const tabs = document.getElementById('stashTabs');
+  if (tabs) { tabs.innerHTML = ''; const pages = Math.ceil(STASH_CAP / 80); for (let t = 0; t < pages; t++) { const b = document.createElement('div'); b.className = 'tab' + (stashTab === t ? ' on' : ''); const lo = t * 80; b.textContent = 'Tab ' + (t + 1) + (character.stashMax <= lo ? ' 🔒' : ''); b.onclick = () => { stashTab = t; renderStash(); }; tabs.appendChild(b); } }
+  for (let i = 0; i < character.invMax; i++) { const it = character.inventory[i]; const c = document.createElement('div'); c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] + lockBadge(it) : ''; if (it) { bindTip(c, it); c.onclick = () => { if (character.stash.length >= character.stashMax) { showMsg('Stash full'); return; } character.stash.push(it); character.inventory.splice(i, 1); renderStash(); saveProgress(false); }; c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; renderStash(); saveProgress(false); }; } bp.appendChild(c); }
+  const start = stashTab * 80;
+  for (let k = 0; k < 80; k++) {
+    const i = start + k; const c = document.createElement('div');
+    if (i >= character.stashMax) { c.className = 'cell'; c.style.opacity = '0.22'; c.title = 'Buy more stash slots below'; st.appendChild(c); continue; }
+    const it = character.stash[i]; c.className = 'cell' + (it ? ' r-' + it.rarity : ''); c.innerHTML = it ? SLOT_ICON[it.slot] + lockBadge(it) : '';
+    if (it) { bindTip(c, it); c.onclick = () => { if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.stash.splice(i, 1); renderStash(); updatePips(); saveProgress(false); }; c.oncontextmenu = e => { e.preventDefault(); it.lock = !it.lock; renderStash(); saveProgress(false); }; }
+    st.appendChild(c);
+  }
   const sb = document.getElementById('slotBuyBar'); if (sb) {
     const bpCost = 100 + (character.invMax - 40) * 25, stCost = 100 + (character.stashMax - 40) * 25, bpMax = character.invMax >= INV_CAP, stMax = character.stashMax >= STASH_CAP;
     sb.innerHTML = `<div class="row" style="flex:1"><div class="rname">🎒 Backpack ${character.invMax}/${INV_CAP}</div>${bpMax ? '<div class="rprice">MAX</div>' : `<div class="rprice">${bpCost} g</div><div class="rbtn${player.gold >= bpCost ? '' : ' dis'}" id="buyBp">+4</div>`}</div>` +

@@ -4,21 +4,48 @@ let monsters = [], projectiles = [], loots = [], floats = [], fx = []; let targe
    singletons (no per-frame closure alloc); arr.length=w truncates in place (no realloc). Order-preserving. */
 function _compact(arr, dead, kill) { let w = 0; for (let i = 0; i < arr.length; i++) { const it = arr[i]; if (dead(it)) { if (kill) kill(it); } else arr[w++] = it; } arr.length = w; }
 const _deadLife0 = o => o.life <= 0, _deadFlag = o => o.dead, _killMesh = o => removeMesh(o.mesh);
+/* Monster types. Optional onAI(m, d, fr) gives a type its signature move — dispatched each un-stunned frame
+   from the monster loop (17-update); the base chase/kite/melee behavior still runs after it. All specials
+   telegraph before they land (spawnTelegraph, 15-combat) so they can be dodged. */
 const MTYPES = {
-  zombie: { hp: 30, dmg: 6, speed: 0.10, r: 1.4, col: 0x6a8a4a, xp: 8, scale: 1.1, name: 'Zombie', resist: { poison: 0.5, fire: 1.25 } }, fallen: { hp: 18, dmg: 5, speed: 0.19, r: 1.1, col: 0xb04a3a, xp: 6, scale: 0.8, name: 'Fallen', resist: { fire: 0.5, frost: 1.25 } }, brute: { hp: 95, dmg: 14, speed: 0.09, r: 2.0, col: 0x7a6a8a, xp: 22, scale: 1.8, name: 'Brute', resist: { fire: 0.5, frost: 1.25 } }, shaman: { hp: 42, dmg: 10, speed: 0.13, r: 1.3, col: 0x3aa0a0, xp: 15, scale: 1.0, ranged: true, name: 'Shaman', resist: { frost: 0.5, lightning: 1.25 } },
+  zombie: { hp: 30, dmg: 6, speed: 0.10, r: 1.4, col: 0x6a8a4a, xp: 8, scale: 1.1, name: 'Zombie', resist: { poison: 0.5, fire: 1.25 } }, fallen: { hp: 18, dmg: 5, speed: 0.19, r: 1.1, col: 0xb04a3a, xp: 6, scale: 0.8, name: 'Fallen', resist: { fire: 0.5, frost: 1.25 } },
+  brute: {
+    hp: 95, dmg: 14, speed: 0.09, r: 2.0, col: 0x7a6a8a, xp: 22, scale: 1.8, name: 'Brute', resist: { fire: 0.5, frost: 1.25 },
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 300); m.spCd -= fr; if (m.spCd <= 0 && d > 8 && d < 32) { m.spCd = 420; const tx = player.x, tz = player.z; m.slow = Math.max(m.slow, 40); spawnTelegraph(tx, tz, 2.8, 550, 0xff8a3a, () => { if (m.hp <= 0) return; const a = Math.atan2(tx - m.x, tz - m.z); m.x = tx - Math.sin(a) * 1.2; m.z = tz - Math.cos(a) * 1.2; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xc4a050); if (Math.hypot(player.x - m.x, player.z - m.z) < 3.4) { damagePlayer(m.dmg * 1.3, m.elite, m.name + "'s charge"); applyStatus(player, 'stun', 500, 0); floatText('Stunned!', player.x, player.z - 1, '#ffcf6a'); } }); } }
+  },
+  shaman: {
+    hp: 42, dmg: 10, speed: 0.13, r: 1.3, col: 0x3aa0a0, xp: 15, scale: 1.0, ranged: true, name: 'Shaman', resist: { frost: 0.5, lightning: 1.25 },
+    onAI(m, d, fr) { if (m.htCd == null) m.htCd = randi(240, 420); m.htCd -= fr; if (m.htCd <= 0 && d < 44) { m.htCd = 620; let totems = 0; for (const o of monsters) if (o.type === 'totem') totems++; if (totems >= 3) return; const tm = spawnMonster('totem', null, { x: m.x + rand(-3, 3), z: m.z + rand(-3, 3) }); if (tm) { tm.showName = true; tm.nameCol = 0x3ad0a0; /* showName without nameCol would make the nameplate deref ELITE_MODS[null] */ spawnExplosion(tm.x, tm.z, 0x3ad0a0); } } }
+  },
   skeleton: { hp: 26, dmg: 8, speed: 0.14, r: 1.2, col: 0xd8d0c0, xp: 12, scale: 1.0, name: 'Skeleton', resist: { poison: 0.25, phys: 1.15, fire: 1.15 } },
   imp: { hp: 16, dmg: 7, speed: 0.22, r: 0.9, col: 0xd0402a, xp: 11, scale: 0.7, name: 'Imp', resist: { fire: 0.4, frost: 1.3 } },
-  hellhound: { hp: 34, dmg: 12, speed: 0.24, r: 1.2, col: 0x6a1a14, xp: 18, scale: 0.95, name: 'Hellhound', resist: { fire: 0.4, frost: 1.25 } },
-  wraith: { hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 } }
+  hellhound: {
+    hp: 34, dmg: 12, speed: 0.24, r: 1.2, col: 0x6a1a14, xp: 18, scale: 0.95, name: 'Hellhound', resist: { fire: 0.4, frost: 1.25 },
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 260); m.spCd -= fr; if (m.spCd <= 0 && d > 7 && d < 26) { m.spCd = 360; const tx = player.x, tz = player.z; spawnTelegraph(tx, tz, 2.4, 450, 0xff3a20, () => { if (m.hp <= 0) return; m.x = tx; m.z = tz; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xff3a20); if (Math.hypot(player.x - m.x, player.z - m.z) < 2.8) damagePlayer(m.dmg * 1.15, m.elite, m.name + "'s pounce"); }); } }
+  },
+  wraith: {
+    hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 },
+    onAI(m, d, fr) { if (m.blCd == null) m.blCd = randi(220, 380); m.blCd -= fr; if (m.blCd <= 0 && d < 40) { m.blCd = 380; spawnExplosion(m.x, m.z, 0x9f6aff); const a = Math.atan2(player.x - m.x, player.z - m.z) + (Math.random() < 0.5 ? -1 : 1) * rand(1.2, 1.9); m.x = player.x - Math.sin(a) * 18; m.z = player.z - Math.cos(a) * 18; clampEntToZone(m); spawnExplosion(m.x, m.z, 0x9f6aff); } }
+  },
+  totem: {
+    hp: 22, dmg: 0, speed: 0, r: 0.9, col: 0x3ad0a0, xp: 6, scale: 0.9, name: 'Healing Totem', stationary: true, resist: { phys: 1.2 },
+    onAI(m, d, fr) { if (m.pulseCd == null) m.pulseCd = 90; m.pulseCd -= fr; if (m.pulseCd <= 0) { m.pulseCd = 90; let healed = false; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.hpMax && !o.boss && Math.hypot(o.x - m.x, o.z - m.z) < 14) { o.hp = Math.min(o.hpMax, o.hp + o.hpMax * 0.03); healed = true; } } if (healed) spawnExplosion(m.x, m.z, 0x3ad0a0); } }
+  },
 };
+/* Elite affixes. Stat fields (speed/dmg/hp/resist) fold in spawnMonster; behavior lives in optional hooks:
+   onAI(m, d, fr) each un-stunned frame, onHitPlayer() after the player takes a hit carrying this affix,
+   onDeath(m) from killMonster. All behavior is table data — no scattered name checks. */
 const ELITE_MODS = {
   swift: { name: 'Swift', col: 0x6affa0, speed: 1.6 },
   mighty: { name: 'Mighty', col: 0xff5040, dmg: 1.6 },
   vile: { name: 'Vile', col: 0x8a5ac0, hp: 1.6 },
-  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', explode: true },
-  frozen: { name: 'Frozen', col: 0x6ad8ff, resist: 'frost', chill: true },
-  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', shoot: true },
+  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', onDeath(m) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, ['fiery'], 'a fiery death burst'); spawnExplosion(m.x, m.z, 0xff7a2a); } },
+  frozen: { name: 'Frozen', col: 0x6ad8ff, resist: 'frost', onHitPlayer() { player.chillUntil = now() + 1500; floatText('Chilled', player.x, player.z - 1, '#9ff'); } },
+  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', onAI(m, d, fr) { m.arcaneCd -= fr; if (m.arcaneCd <= 0 && d < 55) { m.arcaneCd = 90; const a = Math.atan2(player.x - m.x, player.z - m.z); const pm = makeOrb(m.x, 2, m.z, 0xc06aff, 0.5); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.5, vz: Math.cos(a) * 0.5, dmg: m.dmg, kind: 'enemy', life: 150, mesh: pm, mods: m.elite, src: m.name }); } } },
   toxic: { name: 'Toxic', col: 0x8fe07a, resist: 'poison' },
+  molten: { name: 'Molten', col: 0xff5020, resist: 'fire', onAI(m, d, fr) { if (m.moltCd == null) m.moltCd = 30; m.moltCd -= fr; if (m.moltCd <= 0) { m.moltCd = 42; spawnHazard(m.x, m.z, 2.6, 3500, m.dmg * 0.5, 0xff5020, 'molten ground'); } } },
+  waller: { name: 'Walling', col: 0xc08aff, onAI(m, d, fr) { if (m.wallCd == null) m.wallCd = randi(90, 200); m.wallCd -= fr; if (m.wallCd <= 0 && d > 8 && d < 40) { m.wallCd = 320; const a = Math.atan2(player.x - m.x, player.z - m.z); const px = player.x + Math.sin(a) * 6, pz = player.z + Math.cos(a) * 6, wa = a + Math.PI / 2; for (const off of [-1, 0, 1]) spawnWallSeg(px + Math.sin(wa) * off * 2.7, pz + Math.cos(wa) * off * 2.7, 4000); floatText('Walled!', player.x, player.z - 1, '#c08aff'); } } },
+  vortex: { name: 'Vortex', col: 0x9f6aff, onAI(m, d, fr) { if (m.vortCd == null) m.vortCd = randi(120, 260); m.vortCd -= fr; if (m.vortCd <= 0 && d > 10 && d < 34) { m.vortCd = 440; const mx = m.x, mz = m.z; spawnTelegraph(player.x, player.z, 2.2, 700, 0x9f6aff, () => { if (m.hp <= 0) return; /* no pulls from a corpse */ const dd = Math.hypot(player.x - mx, player.z - mz); if (dd > 6) { const a2 = Math.atan2(mx - player.x, mz - player.z); player.x += Math.sin(a2) * dd * 0.6; player.z += Math.cos(a2) * dd * 0.6; clampToZone(); player.chillUntil = now() + 900; floatText('Vortex!', player.x, player.z, '#9f6aff'); } }); } } },
 };
 /* ---------- elemental damage typing + monster resistances (unit 2) ---------- */
 const ELEMENTS = ['fire', 'frost', 'poison', 'lightning', 'phys'];
@@ -35,7 +62,8 @@ function monsterResistMult(m, kind) {
 // floored so depth can never reach 0 (no accidental immunity); vulnerabilities (>1) left as-is.
 function deepenResist(r, depth, elite) {
   if (!r || typeof r === 'string') return r; const out = { ...r };
-  const bonus = Math.min(0.18, (depth || 0) * 0.02) + (elite ? 0.06 : 0);
+  const tier = (typeof difficulty !== 'undefined' && DIFF[difficulty] && DIFF[difficulty].resistBonus) || 0;
+  const bonus = Math.min(0.18, (depth || 0) * 0.02) + (elite ? 0.06 : 0) + tier;
   for (const k in out) { if (out[k] < 1) out[k] = Math.max(0.25, out[k] - bonus); }
   return out;
 }
@@ -107,7 +135,7 @@ function buildMonsterMesh(t, col, scale) {
 function spawnMonster(t, eliteMods, pos) {
   if (_SPK.on) { _ev(eliteMods ? 'spawnElite' : 'spawnMon'); if (!_SPK.seen.has(t)) { _SPK.seen.add(t); _ev('NEWTYPE:' + t); } }
   const base = MTYPES[t]; let x, z;
-  if (pos) { x = pos.x; z = pos.z; } else { const ang = rand(0, Math.PI * 2), d = rand(40, 70); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); x = p.x; z = p.z; }
+  if (pos) { x = pos.x; z = pos.z; } else { let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null; /* room-aware: spawn in the player's room or a door-neighbor so straight-line chase AI can actually reach them */ if (!p) { const ang = rand(0, Math.PI * 2), d = rand(40, 70); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); } x = p.x; z = p.z; }
   const sc = eliteMods ? base.scale * 1.4 : base.scale;
   const mesh = buildMonsterMesh(t, base.col, sc); mesh.position.set(x, 0, z); scene.add(mesh);
   let hpM = curScale.hp, dmgM = curScale.dmg, xpM = curScale.xp, speedMult = 1, name = base.name;
@@ -131,9 +159,11 @@ function spawnMonster(t, eliteMods, pos) {
   return monsters[monsters.length - 1];
 }
 function spawnPack() {
-  const t = choice(biomePool()); const ang = rand(0, 6.28), d = rand(45, 65);
-  const c = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(c); const cx = c.x, cz = c.z;
-  const cnt = depth > 3 ? 2 : 1; const p2 = Object.keys(ELITE_MODS); const mods = []; for (let i = 0; i < cnt; i++) mods.push(p2.splice(randi(0, p2.length - 1), 1)[0]);
+  const t = choice(biomePool());
+  let c = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!c) { const ang = rand(0, 6.28), d = rand(45, 65); c = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(c); }
+  const cx = c.x, cz = c.z;
+  const dmf = DIFF[difficulty] || DIFF.Normal; const cnt = Math.max(depth > 3 ? 2 : 1, dmf.eliteAffixes || 1); const p2 = Object.keys(ELITE_MODS); const mods = []; for (let i = 0; i < cnt; i++) mods.push(p2.splice(randi(0, p2.length - 1), 1)[0]);
   spawnMonster(t, mods, { x: cx, z: cz });
   for (let i = 0; i < 3; i++) { const a = rand(0, 6.28); const mp = { x: cx + Math.cos(a) * 5, z: cz + Math.sin(a) * 5 }; clampEntToZone(mp); spawnMonster(t, null, { x: mp.x, z: mp.z }); }
   cullLights(); showMsg('An elite pack appears!');
@@ -143,7 +173,8 @@ function spawnPack() {
 const CHAMP_NAMES = ['Gorehowl the Render', 'Vexna, Spite of the Deep', 'Karthok Bonecrown', 'The Sallow Warden', 'Ymira Frostfang', 'Drazzel the Unmaker', 'Old Scorn', 'Maluk, Ash-Touched'];
 function spawnChampion(depth) {
   const t = choice(biomePool()); const mod = choice(Object.keys(ELITE_MODS));
-  const ang = rand(0, 6.28), d = rand(40, 60); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p);
+  let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!p) { const ang = rand(0, 6.28), d = rand(40, 60); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); }
   const m = spawnMonster(t, [mod], { x: p.x, z: p.z }); if (!m) return null;
   m.champion = true; m.hp = m.hpMax = Math.round(m.hpMax * 2); m.dmg = Math.round(m.dmg * 1.25); m.name = choice(CHAMP_NAMES); m.nameCol = 0xffd24d;
   cullLights(); return m;
@@ -151,25 +182,32 @@ function spawnChampion(depth) {
 /* Treasure Goblin: rare, fast, harmless, flees — drops a hoard only if you catch it (escape = nothing).
    Reuses the small 'imp' mesh, gold-tinted; no bespoke model. */
 function spawnGoblin() {
-  const ang = rand(0, 6.28), d = rand(34, 55); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p);
+  let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!p) { const ang = rand(0, 6.28), d = rand(34, 55); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); }
   const m = spawnMonster('imp', null, { x: p.x, z: p.z }); if (!m) return null;
-  m.flee = true; m.treasure = true; m.showName = true; m.name = 'Treasure Goblin'; m.nameCol = 0xffd24d;
+  m.goblinKind = Math.random() < 0.3 ? 'gems' : 'gold'; // Gem Hoarder variant: rarer, hoards gems instead of gold
+  const gc = m.goblinKind === 'gems' ? 0x6ad8ff : 0xffd24d;
+  m.flee = true; m.treasure = true; m.showName = true; m.name = m.goblinKind === 'gems' ? 'Gem Hoarder' : 'Treasure Goblin'; m.nameCol = gc;
   m.dmg = 0; m.speed = 0.34; m.ttl = 18000; m.hp = m.hpMax = Math.round(30 + depth * 4); m.xp = Math.round(m.xp * 3);
-  if (m.mesh.userData.bodyMat) m.mesh.userData.bodyMat.color.setHex(0xffd24d);
-  // golden glow shell (additive, no PointLight -> no shader-recompile risk); userData.aura makes the monster loop pulse it
-  const glow = new THREE.Mesh(_mGeo('goblinGlow', () => new THREE.SphereGeometry(1.3, 12, 10)), _mMat('goblinGlow', () => new THREE.MeshBasicMaterial({ color: 0xffd24d, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false })));
+  if (m.mesh.userData.bodyMat) m.mesh.userData.bodyMat.color.setHex(gc);
+  // glow shell (additive, no PointLight -> no shader-recompile risk); userData.aura makes the monster loop pulse it
+  const glow = new THREE.Mesh(_mGeo('goblinGlow', () => new THREE.SphereGeometry(1.3, 12, 10)), _mMat('goblinGlow' + gc, () => new THREE.MeshBasicMaterial({ color: gc, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false })));
   glow.position.y = 1.0; m.mesh.add(glow); m.mesh.userData.aura = glow;
   sfx('gold'); showMsg('A Treasure Goblin scurries by!'); return m;
 }
-/* Distinct named bosses: each maps a model + a FIXED AI variant (reusing bossAI's brute/caster/summoner kits) +
-   a signature color/aura. pickBossDef rotates by depth tier so weaker forms front-load and _Evolved forms gate deep. */
+/* Distinct named bosses: each maps a model + a signature ABILITY LIST resolved against BOSS_ABILITY (below) +
+   a color/aura. `variant` survives as the defaults-provider (VARIANT_ABILITIES) for defs without a list.
+   pickBossDef rotates by depth tier so weaker forms front-load and the deep roster gates by minDepth. */
 const BOSS_DEFS = [
-  { role: 'boss_mushnub',   name: 'Sporelord Myconid',      variant: 'summoner', col: 0x7ad84a, light: 0x9aff5a, minDepth: 0 },
-  { role: 'boss_bluedemon', name: 'Azurath the Profane',    variant: 'caster',   col: 0x4a8aff, light: 0x6aa0ff, minDepth: 0 },
-  { role: 'boss_mushking',  name: 'The Mycelial Throne',    variant: 'summoner', col: 0xb070ff, light: 0xc090ff, minDepth: 0 },
-  { role: 'boss_goleling',  name: 'Gravelmaw the Unbroken', variant: 'brute',    col: 0xc8a060, light: 0xe0b070, minDepth: 10 },
-  { role: 'boss_dragon',    name: 'Cinderwing',             variant: 'brute',    col: 0xff5020, light: 0xff6a30, minDepth: 15 },
-  { role: 'boss_dragonevo', name: 'Pyraxis, Elder Wyrm',    variant: 'caster',   col: 0xff3010, light: 0xff4a18, minDepth: 25 },
+  { role: 'boss_mushnub', name: 'Sporelord Myconid', variant: 'summoner', col: 0x7ad84a, light: 0x9aff5a, minDepth: 0, abilities: [{ kind: 'summon', cd: 420, p2cd: 300, types: ['fallen'], n: 2, p2n: 3, shield: 180 }, { kind: 'ringwave', cd: 360, col: 0x7ad84a, waves: 2, mul: 0.8 }, { kind: 'volley', cd: 140, p2cd: 90, arc: 2, p2arc: 3 }] },
+  { role: 'boss_bluedemon', name: 'Azurath the Profane', variant: 'caster', col: 0x4a8aff, light: 0x6aa0ff, minDepth: 0, abilities: [{ kind: 'volley', cd: 104, p2cd: 64, arc: 2, p2arc: 3, chill: true }, { kind: 'teleport', cd: 260, col: 0x9f6aff }, { kind: 'ringwave', cd: 420, col: 0x4a8aff, waves: 3, mul: 0.8 }] },
+  { role: 'boss_mushking', name: 'The Mycelial Throne', variant: 'summoner', col: 0xb070ff, light: 0xc090ff, minDepth: 0, abilities: [{ kind: 'summon', cd: 400, p2cd: 280, types: ['fallen', 'zombie'], n: 2, p2n: 3, shield: 200 }, { kind: 'volley', cd: 150, p2cd: 95, arc: 2 }, { kind: 'addphase', types: ['fallen'], n: 4, shield: 260, msg: 'The Throne wakes its brood!' }] },
+  { role: 'boss_goleling', name: 'Gravelmaw the Unbroken', variant: 'brute', col: 0xc8a060, light: 0xe0b070, minDepth: 10, abilities: [{ kind: 'slam', cd: 280, r: 7, mul: 1.4, wind: 850 }, { kind: 'ringwave', cd: 430, col: 0xc8a060, waves: 3 }, { kind: 'volley', cd: 150, p2cd: 95, arc: 2 }] },
+  { role: 'boss_dragon', name: 'Cinderwing', variant: 'brute', col: 0xff5020, light: 0xff6a30, minDepth: 15, abilities: [{ kind: 'cone', cd: 300, col: 0xff5020, mul: 0.65 }, { kind: 'slam', cd: 340, r: 6, mul: 1.3 }, { kind: 'volley', cd: 130, p2cd: 85, arc: 2, p2arc: 3 }] },
+  { role: 'boss_dragonevo', name: 'Pyraxis, Elder Wyrm', variant: 'caster', col: 0xff3010, light: 0xff4a18, minDepth: 25, abilities: [{ kind: 'cone', cd: 260, col: 0xff3010, mul: 0.75, segs: 4 }, { kind: 'volley', cd: 110, p2cd: 70, arc: 3, p2arc: 4 }, { kind: 'teleport', cd: 240, col: 0xff5020 }] },
+  { role: 'boss_yeti', name: 'Hrimgar the Avalanche', variant: 'brute', col: 0x9fd8ff, light: 0xbfe8ff, minDepth: 35, abilities: [{ kind: 'slam', cd: 260, r: 7.5, mul: 1.5, wind: 800 }, { kind: 'ringwave', cd: 400, col: 0x9fd8ff, waves: 3, mul: 1.0 }, { kind: 'volley', cd: 120, p2cd: 80, arc: 2, p2arc: 3, chill: true }] },
+  { role: 'boss_orc', name: 'Warlord Skullrend', variant: 'brute', col: 0x8aa04a, light: 0xa8c05a, minDepth: 50, abilities: [{ kind: 'slam', cd: 240, r: 6.5, mul: 1.5, wind: 750 }, { kind: 'volley', cd: 100, p2cd: 65, arc: 3, p2arc: 4 }, { kind: 'addphase', types: ['skeleton', 'fallen'], n: 4, shield: 240, msg: 'The warband answers the horn!' }] },
+  { role: 'boss_tribal', name: "Zul'Mak the Flayer", variant: 'summoner', col: 0x8fe07a, light: 0xa8f08a, minDepth: 65, abilities: [{ kind: 'summon', cd: 340, p2cd: 240, types: ['imp', 'hellhound'], n: 3, p2n: 4, shield: 200, msg: "Zul'Mak calls the hunt!" }, { kind: 'cone', cd: 280, col: 0x8fe07a, mul: 0.7 }, { kind: 'teleport', cd: 260, col: 0x8fe07a }] },
 ];
 function pickBossDef(d) { const pool = BOSS_DEFS.filter(b => d >= (b.minDepth || 0)); if (!pool.length) return BOSS_DEFS[0]; return pool[Math.floor(d / 5) % pool.length]; }
 function buildBoss(def) {
@@ -190,7 +228,7 @@ function buildBoss(def) {
 }
 function spawnBoss(d) {
   const dm = DIFF[difficulty] || DIFF.Normal; const B = BOSS_SCALE; const hp = Math.round(B.hpBase * (1 + d * B.hpLin + Math.pow(d * B.hpQuad, 2)) * dm.hp); const cdMul = clamp(1 - d * 0.015, 0.5, 1); const def = pickBossDef(d); const mesh = buildBoss(def); mesh.position.set(0, 0, -30); scene.add(mesh); cullLights();
-  const b = Object.assign({ type: 'boss', x: 0, z: -30, hp, hpMax: hp, r: 4.2, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp), speed: 0.07, col: def.col, scale: 3, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: def.name + ' · Depth ' + d, phase: 1, boltCd: 120, slamCd: 300, summonCd: 480, variant: def.variant, tpCd: 240, shield: 0, shieldMul: 0.5 });
+  const b = Object.assign({ type: 'boss', x: 0, z: -30, hp, hpMax: hp, r: 4.2, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp), speed: 0.07, col: def.col, scale: 3, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: def.name + ' · Depth ' + d, role: def.role, phase: 1, variant: def.variant, abilities: def.abilities || null, shield: 0, shieldMul: 0.5 });
   monsters.push(b); boss = b; sfx('boss');
 }
 /* ---- depth-666 unique: the big devil + hell arena (reachable only by descending) ---- */
@@ -214,36 +252,63 @@ function buildDevil() {
 function spawnDevil(d) {
   const dm = DIFF[difficulty] || DIFF.Normal; const B = BOSS_SCALE;
   const hp = Math.round(B.hpBase * (1 + d * B.hpLin + Math.pow(d * B.hpQuad, 2)) * dm.hp * 3); const cdMul = clamp(1 - d * 0.015, 0.45, 1); const mesh = buildDevil(); mesh.position.set(0, 0, -34); scene.add(mesh); cullLights();
-  const b = Object.assign({ type: 'boss', x: 0, z: -34, hp, hpMax: hp, r: 6.5, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg * 1.5), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp * 4), speed: 0.06, col: 0x6a0e12, scale: 5.5, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: 'Belphegor, Lord of the Inferno · Depth ' + d, phase: 1, boltCd: 90, slamCd: 240, summonCd: 360, variant: 'devil', tpCd: 200, shield: 0, shieldMul: 0.4 });
+  const b = Object.assign({ type: 'boss', x: 0, z: -34, hp, hpMax: hp, r: 6.5, dmg: Math.round(B.dmgBase * (1 + d * B.dmgLin + Math.pow(d * B.dmgQuad, 2)) * dm.dmg * 1.5), xp: Math.round(B.xpBase * (1 + d * B.xpLin) * dm.xp * 4), speed: 0.06, col: 0x6a0e12, scale: 5.5, atkCd: 0, slow: 0, flash: 0, mesh, bob: 0, elite: null, boss: true, cdMul, name: 'Belphegor, Lord of the Inferno · Depth ' + d, phase: 1, variant: 'devil', abilities: null, shield: 0, shieldMul: 0.4 });
   monsters.push(b); boss = b; sfx('boss');
 }
 function bossVolley(m, arc, spd, chill) {
-  const cm = m.cdMul || 1; const base = Math.atan2(player.x - m.x, player.z - m.z);
-  for (let k = -arc; k <= arc; k++) { const a = base + k * 0.22; const pm = makeOrb(m.x, 2.5, m.z, chill ? 0x6ad8ff : 0xff5020, 0.55); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * spd, vz: Math.cos(a) * spd, dmg: Math.round(m.dmg * 0.7), kind: 'enemy', life: 160, mesh: pm, chill: !!chill }); }
+  const base = Math.atan2(player.x - m.x, player.z - m.z);
+  for (let k = -arc; k <= arc; k++) { const a = base + k * 0.22; const pm = makeOrb(m.x, 2.5, m.z, chill ? 0x6ad8ff : 0xff5020, 0.55); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * spd, vz: Math.cos(a) * spd, dmg: Math.round(m.dmg * 0.7), kind: 'enemy', life: 160, mesh: pm, chill: !!chill, src: (m.name || '').split(' · ')[0] }); }
 }
+/* ---- data-driven boss ability kits ----
+   Every big hit telegraphs first (spawnTelegraph) so it can be dodged — the v49 same-frame slam is gone.
+   `range` = hold (retry next frame, no cooldown reset) until the player is close enough. `addphase` is the
+   one-shot 50%-HP mechanic. Ability params live on BOSS_DEFS.abilities entries; VARIANT_ABILITIES keeps the
+   legacy brute/caster/summoner/devil kits for anything without its own list (e.g. Belphegor). */
+const BOSS_ABILITY = {
+  volley: { use(m, ab) { bossVolley(m, (m.phase === 2 ? (ab.p2arc || (ab.arc || 2) + 1) : (ab.arc || 2)), ab.spd || 0.6, !!ab.chill); } },
+  slam: {
+    range: 26,
+    use(m, ab) { const tx = player.x, tz = player.z, r = ab.r || 6; spawnTelegraph(tx, tz, r, ab.wind || 900, 0xff5030, () => { if (m.hp <= 0) return; spawnExplosion(tx, tz, 0xff3020); if (Math.hypot(player.x - tx, player.z - tz) < r) damagePlayer(Math.round(m.dmg * (ab.mul || 1.3)), null, bossShort(m)); }); },
+  },
+  cone: {
+    range: 34,
+    use(m, ab) { const mx = m.x, mz = m.z, base = Math.atan2(player.x - mx, player.z - mz), col = ab.col || 0xff5020, segs = ab.segs || 3; for (let i = 1; i <= segs; i++) spawnTelegraph(mx + Math.sin(base) * i * 6.5, mz + Math.cos(base) * i * 6.5, 2.6 + i * 0.5, ab.wind || 750, col, i === segs ? () => { if (m.hp <= 0) return; for (let j = 1; j <= segs; j++) spawnHazard(mx + Math.sin(base) * j * 6.5, mz + Math.cos(base) * j * 6.5, 2.6 + j * 0.5, ab.life || 2400, m.dmg * (ab.mul || 0.6), col, bossShort(m) + "'s breath"); } : null); },
+  },
+  ringwave: {
+    use(m, ab) { const mx = m.x, mz = m.z, col = ab.col || 0xff8a3a, waves = ab.waves || 3; for (let i = 1; i <= waves; i++) { const r = 5 + i * 5.5; spawnTelegraph(mx, mz, r, 300 + i * 320, col, () => { if (m.hp <= 0) return; spawnExplosion(mx, mz, col); const pd = Math.hypot(player.x - mx, player.z - mz); if (Math.abs(pd - r) < 2.4) damagePlayer(Math.round(m.dmg * (ab.mul || 0.9)), null, bossShort(m)); }); } },
+  },
+  teleport: {
+    range: 28,
+    use(m, ab) { const col = ab.col || 0x9f6aff; spawnExplosion(m.x, m.z, col); const a = Math.atan2(player.x - m.x, player.z - m.z); m.x = player.x - Math.sin(a) * (ab.dist || 22); m.z = player.z - Math.cos(a) * (ab.dist || 22); clampEntToZone(m); spawnExplosion(m.x, m.z, col); },
+  },
+  summon: {
+    use(m, ab) { const n = m.phase === 2 ? (ab.p2n || 3) : (ab.n || 2); for (let i = 0; i < n; i++) { const a = rand(0, 6.28); spawnMonster(choice(ab.types || ['fallen']), null, { x: m.x + Math.cos(a) * (ab.rad || 5), z: m.z + Math.sin(a) * (ab.rad || 5) }); } if (ab.shield) m.shield = Math.max(m.shield, ab.shield); spawnExplosion(m.x, m.z, 0x6aff9a); showMsg(ab.msg || 'Minions summoned!'); },
+  },
+  addphase: {
+    use(m, ab) { for (let i = 0; i < (ab.n || 4); i++) { const a = rand(0, 6.28); spawnMonster(choice(ab.types || ['fallen']), null, { x: m.x + Math.cos(a) * 6, z: m.z + Math.sin(a) * 6 }); } if (ab.shield) m.shield = Math.max(m.shield, ab.shield); spawnExplosion(m.x, m.z, 0xffd24d); showMsg(ab.msg || 'The brood answers!'); },
+  },
+};
+const VARIANT_ABILITIES = {
+  brute: [{ kind: 'volley', cd: 130, p2cd: 80, arc: 2, p2arc: 3, t0: 120 }, { kind: 'slam', cd: 300, r: 6, mul: 1.3, t0: 300 }, { kind: 'addphase', types: ['fallen'], n: 2, msg: 'Minions summoned!' }],
+  caster: [{ kind: 'volley', cd: 104, p2cd: 64, arc: 2, p2arc: 3, chill: true, t0: 120 }, { kind: 'slam', cd: 520, r: 5, mul: 1.3, t0: 300 }, { kind: 'teleport', cd: 260, t0: 240 }],
+  summoner: [{ kind: 'summon', cd: 420, p2cd: 300, types: ['fallen'], n: 2, p2n: 3, shield: 180, t0: 480 }, { kind: 'volley', cd: 130, p2cd: 80, arc: 2, p2arc: 3, t0: 120 }, { kind: 'slam', cd: 300, r: 5, mul: 1.3, t0: 300 }],
+  devil: [{ kind: 'volley', cd: 72, p2cd: 44, arc: 3, p2arc: 4, spd: 0.62, t0: 90 }, { kind: 'volley', cd: 72, p2cd: 44, arc: 2, spd: 0.5, chill: true, t0: 90 }, { kind: 'slam', cd: 300, r: 8, mul: 1.4, t0: 240 }, { kind: 'teleport', cd: 240, dist: 22, col: 0xff5020, t0: 200 }, { kind: 'summon', cd: 380, p2cd: 260, types: ['imp', 'hellhound'], n: 3, p2n: 4, rad: 6, shield: 150, msg: 'The Devil calls its brood!', t0: 360 }],
+};
+const bossShort = m => (m.name || 'the boss').split(' · ')[0];
 function bossAI(m, dt, d, sp) {
   const fr = dt * 60 / 1000; /* see update(): decrement frame-count cooldowns by real elapsed 60ths so boss ability cadence is framerate-independent */
   if (m.shield > 0) m.shield -= fr;
   if (m.phase === 1 && m.hp < m.hpMax * 0.5) { m.phase = 2; m.speed *= 1.5; showMsg(m.name.split(' · ')[0] + ' enrages!'); }
-  if (d > m.r + player.r + 0.5) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 70; damagePlayer(m.dmg); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; if (m.hp <= 0) killMonster(m); } } }
-  const cm = m.cdMul || 1; const v = m.variant || 'brute';
-  if (v === 'devil') {
-    m.boltCd -= fr; if (m.boltCd <= 0) { m.boltCd = (m.phase === 2 ? 44 : 72) * cm; bossVolley(m, m.phase === 2 ? 4 : 3, 0.62, false); bossVolley(m, 2, 0.5, true); }
-    m.slamCd -= fr; if (m.slamCd <= 0 && d < 24) { m.slamCd = 300 * cm; spawnExplosion(m.x, m.z, 0xff2400); if (d < 16) damagePlayer(Math.round(m.dmg * 1.4)); }
-    m.tpCd -= fr; if (m.tpCd <= 0 && d < 28) { m.tpCd = 240 * cm; spawnExplosion(m.x, m.z, 0xff5020); const a = Math.atan2(player.x - m.x, player.z - m.z); m.x = player.x - Math.sin(a) * 22; m.z = player.z - Math.cos(a) * 22; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xff5020); }
-    m.summonCd -= fr; if (m.summonCd <= 0) { m.summonCd = (m.phase === 2 ? 260 : 380) * cm; for (let i = 0; i < (m.phase === 2 ? 4 : 3); i++) { const a = rand(0, 6.28); spawnMonster(choice(['imp', 'hellhound']), null, { x: m.x + Math.cos(a) * 6, z: m.z + Math.sin(a) * 6 }); } m.shield = Math.max(m.shield, 150); spawnExplosion(m.x, m.z, 0xff6a2a); showMsg('The Devil calls its brood!'); }
-  } else if (v === 'caster') {
-    m.boltCd -= fr; if (m.boltCd <= 0) { m.boltCd = (m.phase === 2 ? 64 : 104) * cm; bossVolley(m, m.phase === 2 ? 3 : 2, 0.6, true); }
-    m.slamCd -= fr; if (m.slamCd <= 0 && d < 14) { m.slamCd = 520 * cm; spawnExplosion(m.x, m.z, 0xff3020); if (d < 10) damagePlayer(Math.round(m.dmg * 1.3)); }
-    m.tpCd -= fr; if (m.tpCd <= 0 && d < 18) { m.tpCd = 260 * cm; spawnExplosion(m.x, m.z, 0x9f6aff); const a = Math.atan2(player.x - m.x, player.z - m.z); m.x = player.x - Math.sin(a) * 24; m.z = player.z - Math.cos(a) * 24; clampEntToZone(m); spawnExplosion(m.x, m.z, 0x9f6aff); }
-  } else if (v === 'summoner') {
-    m.summonCd -= fr; if (m.summonCd <= 0) { m.summonCd = (m.phase === 2 ? 300 : 420) * cm; for (let i = 0; i < (m.phase === 2 ? 3 : 2); i++) { const a = rand(0, 6.28); spawnMonster('fallen', null, { x: m.x + Math.cos(a) * 5, z: m.z + Math.sin(a) * 5 }); } m.shield = Math.max(m.shield, 180); spawnExplosion(m.x, m.z, 0x6aff9a); showMsg('Minions summoned!'); }
-    m.boltCd -= fr; if (m.boltCd <= 0) { m.boltCd = (m.phase === 2 ? 80 : 130) * cm; bossVolley(m, m.phase === 2 ? 3 : 2, 0.6, false); }
-    m.slamCd -= fr; if (m.slamCd <= 0 && d < 16) { m.slamCd = 300 * cm; spawnExplosion(m.x, m.z, 0xff3020); if (d < 10) damagePlayer(Math.round(m.dmg * 1.3)); }
-  } else {
-    m.boltCd -= fr; if (m.boltCd <= 0) { m.boltCd = (m.phase === 2 ? 80 : 130) * cm; bossVolley(m, m.phase === 2 ? 3 : 2, 0.6, false); }
-    m.slamCd -= fr; if (m.slamCd <= 0 && d < 16) { m.slamCd = 300 * cm; spawnExplosion(m.x, m.z, 0xff3020); if (d < 10) damagePlayer(Math.round(m.dmg * 1.3)); }
-    if (m.phase === 2) { m.summonCd -= fr; if (m.summonCd <= 0) { m.summonCd = 420 * cm; for (let i = 0; i < 2; i++) { const a = rand(0, 6.28); spawnMonster('fallen', null, { x: m.x + Math.cos(a) * 5, z: m.z + Math.sin(a) * 5 }); } showMsg('Minions summoned!'); } }
+  if (d > m.r + player.r + 0.5) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 70; damagePlayer(m.dmg, null, bossShort(m)); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; if (m.hp <= 0) killMonster(m); } } }
+  const cm = m.cdMul || 1;
+  if (!m.abil) m.abil = (m.abilities || VARIANT_ABILITIES[m.variant] || VARIANT_ABILITIES.brute).map(ab => ({ ...ab, t: ab.t0 != null ? ab.t0 : ab.cd }));
+  for (const ab of m.abil) {
+    const spec = BOSS_ABILITY[ab.kind]; if (!spec) continue;
+    if (ab.kind === 'addphase') { if (m.phase === 2 && !ab.done) { ab.done = true; spec.use(m, ab); } continue; }
+    ab.t -= fr; if (ab.t > 0) continue;
+    if (spec.range && d > spec.range) continue; /* hold in-range abilities without resetting the cooldown */
+    ab.t = ((m.phase === 2 && ab.p2cd) ? ab.p2cd : ab.cd) * cm;
+    spec.use(m, ab, d);
   }
 }
 // Dungeon spawns draw from the active biome's weighted pool (random biome → varied roster); wild keeps its classic mix.
@@ -254,7 +319,7 @@ const MOB_CAP = 30; /* ponytail: flat concurrent-monster ceiling. Normal play (k
 function spawnWave() {
   const eliteChance = zone === 'dungeon' ? 0.10 + depth * 0.02 : 0.04; if (Math.random() < eliteChance) _spawnQueue.push({ pack: true });
   if (zone === 'dungeon' && Math.random() < 0.03) _spawnQueue.push({ goblin: true }); // rare treasure goblin
-  const extra = zone === 'dungeon' ? 1 : 0; const pool = biomePool(); for (let i = 0; i < rand(2, 5) + extra; i++) _spawnQueue.push({ type: choice(pool) });
+  const extra = zone === 'dungeon' ? 1 : 0; const dens = (DIFF[difficulty] || DIFF.Normal).density || 1; const pool = biomePool(); const n = Math.round((rand(2, 5) + extra) * dens); for (let i = 0; i < n; i++) _spawnQueue.push({ type: choice(pool) });
 }
 // Amortize first-render: release one queued spawn per cadence so each frame compiles at most one new GPU
 // pipeline variant. Turns the cold-encounter compile burst (a single ~2s frozen frame) into a few small

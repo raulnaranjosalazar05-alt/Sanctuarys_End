@@ -13,7 +13,7 @@ function update(dt) {
     if (player.stunned) { /* stunned: cannot move or attack */ }
     else if (target) {
       const d = Math.hypot(target.x - player.x, target.z - player.z); const reach = player.range + (target.r || 0); if (d > reach) moveToward(target.x, target.z, dt);
-      else { player.dir = Math.atan2(target.x - player.x, target.z - player.z); if (T - player.attackCd > player.attackRate) { player.attackCd = T; player.swing = T; hitMonster(target, player); } }
+      else { player.dir = Math.atan2(target.x - player.x, target.z - player.z); const ar = player.attackRate * (player.buffs.frenzyUntil > T ? player.buffs.frenzyMul : 1); if (T - player.attackCd > ar) { player.attackCd = T; player.swing = T; hitMonster(target, player); } }
     }
     else if (moveTarget) { moveToward(moveTarget.x, moveTarget.z, dt); if (Math.hypot(moveTarget.x - player.x, moveTarget.z - player.z) < 0.5) moveTarget = null; }
   } else { if (moveTarget) { moveToward(moveTarget.x, moveTarget.z, dt); if (Math.hypot(moveTarget.x - player.x, moveTarget.z - player.z) < 0.5) moveTarget = null; } }
@@ -27,21 +27,24 @@ function update(dt) {
     if (m.hp <= 0) continue; if (m.flash > 0) m.flash -= fr; tickStatuses(m, dt, false); if (m.hp <= 0) continue; if (player.effects.chillaura && Math.hypot(m.x - player.x, m.z - player.z) < 14 && m.slow < 12) m.slow = 12; const sp = m.speed * (m.speedMult || 1) * Math.min(m.slow > 0 ? 0.45 : 1, m.chilled ? 0.5 : 1) * 60 * dt / 1000; if (m.slow > 0) m.slow -= fr; const d = Math.hypot(m.x - player.x, m.z - player.z);
     if (m.flee) { m.ttl -= dt; if (m.ttl <= 0) { removeMob(m.mesh); monsters = monsters.filter(x => x !== m); if (target === m) target = null; showMsg('The goblin escaped!'); continue; } } // escape: clean vanish (no death anim), drops NOTHING (must not route through killMonster)
     if (!m.stunned) {
-      if (m.elite && m.elite.includes('arcane')) { m.arcaneCd -= fr; if (m.arcaneCd <= 0 && d < 55) { m.arcaneCd = 90; const a = Math.atan2(player.x - m.x, player.z - m.z); const pm = makeOrb(m.x, 2, m.z, 0xc06aff, 0.5); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.5, vz: Math.cos(a) * 0.5, dmg: m.dmg, kind: 'enemy', life: 150, mesh: pm, mods: m.elite }); } }
-      if (m.flee) { stepEnt(m, 2 * m.x - player.x, 2 * m.z - player.z, sp); } else if (m.boss) { bossAI(m, dt, d, sp); } else if (m.ranged) {
+      if (m.elite) { for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onAI) md.onAI(m, d, fr); } } // elite affix behaviors are table hooks, not name checks
+      if (m.onAI && !m.flee && !m.boss) m.onAI(m, d, fr); // per-type signature move (brute charge, hound leap, shaman totem, wraith blink, totem pulse)
+      if (m.flee) { stepEnt(m, 2 * m.x - player.x, 2 * m.z - player.z, sp); } else if (m.boss) { bossAI(m, dt, d, sp); } else if (m.stationary) { /* totems hold their ground */ } else if (m.ranged) {
         if (d > 34) stepEnt(m, player.x, player.z, sp); else if (d < 20) stepEnt(m, m.x - (player.x - m.x), m.z - (player.z - m.z), sp);
-        m.atkCd -= fr; if (d < 42 && m.atkCd <= 0) { m.atkCd = 110; const a = Math.atan2(player.x - m.x, player.z - m.z); const mesh = makeOrb(m.x, 2, m.z, 0xb06aff, 0.45); scene.add(mesh); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.55, vz: Math.cos(a) * 0.55, dmg: m.dmg, kind: 'enemy', life: 150, mesh }); }
+        m.atkCd -= fr; if (d < 42 && m.atkCd <= 0) { m.atkCd = 110; const a = Math.atan2(player.x - m.x, player.z - m.z); const mesh = makeOrb(m.x, 2, m.z, 0xb06aff, 0.45); scene.add(mesh); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.55, vz: Math.cos(a) * 0.55, dmg: m.dmg, kind: 'enemy', life: 150, mesh, src: m.name }); }
       }
-      else { if (d > m.r + player.r - 0.4) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 60; damagePlayer(m.dmg, m.elite); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; m.flash = 8; if (m.hp <= 0) killMonster(m); } } } }
+      else { if (d > m.r + player.r - 0.4) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 60; damagePlayer(m.dmg, m.elite, m.name); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; m.flash = 8; if (m.hp <= 0) killMonster(m); } } } }
     }
     resolveCircles(m, m.r, activeColliders(), 1); { const dx = m.x - player.x, dz = m.z - player.z; let d = Math.hypot(dx, dz); const min = m.r + player.r; if (d < min && d > 0.0001) { m.x += dx / d * (min - d); m.z += dz / d * (min - d); } } clampEntToZone(m);
     m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
 
+  if (running && isCombat()) tickFieldFx(dt); // telegraphs fire, hazards burn, temp walls expire
+
   for (const p of projectiles) {
     if (p.homing && monsters.length) { let hb = null, hd = 1e9; for (const m of monsters) { const d = Math.hypot(m.x - p.x, m.z - p.z); if (d < hd) { hd = d; hb = m; } } if (hb) { const sp = Math.hypot(p.vx, p.vz) || 0.8, ca = Math.atan2(p.vx, p.vz), rel = Math.atan2(hb.x - p.x, hb.z - p.z) - ca, da = Math.atan2(Math.sin(rel), Math.cos(rel)), na = ca + clamp(da, -0.09, 0.09); p.vx = Math.sin(na) * sp; p.vz = Math.cos(na) * sp; } }
     p.x += p.vx * 60 * dt / 1000; p.z += p.vz * 60 * dt / 1000; p.life -= fr; p.mesh.position.set(p.x, 2, p.z);
-    if (p.kind === 'enemy') { if (Math.hypot(p.x - player.x, p.z - player.z) < player.r + 0.6) { damagePlayer(p.dmg, p.mods); if (p.chill) applyStatus(player, 'chill', 1400, 0); p.life = 0; } }
+    if (p.kind === 'enemy') { if (Math.hypot(p.x - player.x, p.z - player.z) < player.r + 0.6) { damagePlayer(p.dmg, p.mods, p.src); if (p.chill) applyStatus(player, 'chill', 1400, 0); p.life = 0; } }
     else { for (const m of monsters) { if (Math.hypot(p.x - m.x, p.z - m.z) < m.r + 0.6) { if (p.hit && p.hit.has(m)) continue; hitMonsterProj(m, p.dmg, p.kind); if (m.hp > 0) { if (p.kind === 'frost') m.slow = p.slow; if (p.onHit) applyOnHit(m, p.onHit, p.dmg); if (p.freeze) applyStatus(m, 'chill', 1500, 0); if (p.knockback) { const a = Math.atan2(m.x - p.x, m.z - p.z); m.x += Math.sin(a) * 2.2; m.z += Math.cos(a) * 2.2; } } if (p.vampiric) player.hp = Math.min(player.hpMax, player.hp + p.dmg * 0.12); projBurst(p); if (p.hit) p.hit.add(m); if (p.pierce && p.pierce > 0) { p.pierce--; } else { p.life = 0; break; } } } }
     if (Math.abs(p.x) > MAP || Math.abs(p.z) > MAP) p.life = 0;
   }
@@ -59,8 +62,8 @@ function update(dt) {
       if (l.kind === 'gold') { player.gold += l.payload; goldTxt.textContent = player.gold + ' g'; floatText(l.payload + 'g', player.x, player.z, '#ffe27a'); sfx('gold'); l.dead = true; }
       else if (l.kind === 'potion') { player.hpPotions = Math.min(character.potionCap, player.hpPotions + 1); floatText('+Potion', player.x, player.z, '#ff6b5b'); l.dead = true; }
       else if (l.kind === 'manapotion') { player.mpPotions = Math.min(character.potionCap, player.mpPotions + 1); floatText('+Mana', player.x, player.z, '#5a9bff'); l.dead = true; }
-      else if (l.kind === 'gem') { const k = l.payload.t + ':' + l.payload.q; character.gems = character.gems || {}; character.gems[k] = (character.gems[k] || 0) + 1; floatText('+' + gemName(l.payload), player.x, player.z, '#9fe8ff'); sfx('gold'); l.dead = true; if (invOpen) renderInv(); }
-      else { const lf = SAVE._data && SAVE._data.settings && SAVE._data.settings.lootFilter; if (lf && !lootPasses(lf, l.payload)) { const g = sellValue(l.payload), du = dustValue(l.payload); player.gold += g; character.materials = (character.materials || 0) + du; goldTxt.textContent = player.gold + ' g'; floatText('+' + g + 'g · +' + du + '✦', player.x, player.z, '#caa84a'); l.dead = true; } else if (character.inventory.length < character.invMax) { character.inventory.push(l.payload); floatText(l.payload.name, player.x, player.z, '#' + RCOL[l.payload.rarity].toString(16).padStart(6, '0')); l.dead = true; if (invOpen) renderInv(); updatePips(); } else if (T - _bagFullAt > 2500) { _bagFullAt = T; floatText('Bag full!', player.x, player.z, '#ff8'); } }
+      else if (l.kind === 'gem') { const k = l.payload.t + ':' + l.payload.q; character.gems = character.gems || {}; character.gems[k] = (character.gems[k] || 0) + 1; floatText('+' + gemName(l.payload), player.x, player.z, '#9fe8ff'); sfx('gold'); l.dead = true; _ev('pickupGem'); if (invOpen) renderInv(); }
+      else { const lf = SAVE._data && SAVE._data.settings && SAVE._data.settings.lootFilter; if (lf && !lootPasses(lf, l.payload)) { const du = dustValue(l.payload); character.materials = (character.materials || 0) + du; floatText('+' + du + '✦', player.x, player.z, '#b9a6ff'); l.dead = true; } /* auto-salvage pays Dust only — gold comes from selling at a vendor */ else if (character.inventory.length < character.invMax) { character.inventory.push(l.payload); floatText(l.payload.name, player.x, player.z, '#' + RCOL[l.payload.rarity].toString(16).padStart(6, '0')); l.dead = true; if (l.payload.rarity === 'unique') _ev('pickupUnique'); else if (l.payload.rarity === 'set') _ev('pickupSet'); if (invOpen) renderInv(); updatePips(); } else if (T - _bagFullAt > 2500) { _bagFullAt = T; floatText('Bag full!', player.x, player.z, '#ff8'); } }
     }
   }
   _compact(loots, _deadFlag, _killMesh);
@@ -98,7 +101,7 @@ function update(dt) {
   placeCamera(player); updateGlobes();
   _floatAcc -= dt; if (_floatAcc <= 0) { _floatAcc = 33; renderFloats(); }
   _plAcc -= dt; if (_plAcc <= 0) { _plAcc = 120; cullLights(); }
-  _uiAcc -= dt; if (_uiAcc <= 0) { _uiAcc = 66; renderSkillCd(); drawMinimap(); updateDebug(); }
+  _uiAcc -= dt; if (_uiAcc <= 0) { _uiAcc = 66; renderSkillCd(); drawMinimap(); renderBuffChips(); updateDebug(); }
 }
 let _floatAcc = 0, _uiAcc = 0, _plAcc = 0, _dbgOn = false, _bagFullAt = -9999;
 /* ---- Phase 0 perf rig: frame-time ring buffer + GPU-timestamp sampling. recordFrame() is a single typed-array
@@ -128,12 +131,14 @@ function moveToward(tx, tz, dt) {
   clampEntToZone(player);
 }
 function stepEnt(e, tx, tz, sp) { const a = Math.atan2(tx - e.x, tz - e.z); e.x += Math.sin(a) * sp; e.z += Math.cos(a) * sp; clampEntToZone(e); }
-function damagePlayer(d, mods) {
-  if (_perfGod) return; /* perf rig: invincible under the perftest harness */
-  if (Math.random() < (player.effects.dodge || 0)) { floatText('Dodge', player.x, player.z, '#9ff'); return; }
+function damagePlayer(d, mods, src) {
+  if (_perfGod) return false; /* perf rig: invincible under the perftest harness */
+  if (Math.random() < (player.effects.dodge || 0)) { floatText('Dodge', player.x, player.z, '#9ff'); return false; }
+  player._lastHit = src || player._lastHit || 'a monster'; /* death-recap: remember what's hurting us (specific sources win; generic hits keep the last known name) */
+  if ((player.effects.block || 0) > 0 && Math.random() < player.effects.block) { d *= 0.6; floatText('Block', player.x, player.z, '#9fd8ff'); }
   const dr = player.armor / (player.armor + 40); d = d * (1 - Math.min(dr, 0.75));
   if (player.effects.flatDR > 0) d *= (1 - player.effects.flatDR);
-  { const e = player.effects; let res = e.allRes || 0; if (mods && mods.includes) { if (mods.includes('fiery')) res += e.fireRes || 0; else if (mods.includes('frozen')) res += e.frostRes || 0; else if (mods.includes('arcane')) res += e.lightningRes || 0; else if (mods.includes('toxic')) res += e.poisonRes || 0; } if (res > 0) d *= (1 - Math.min(res, 75) / 100); } if (player.buffs.cryUntil > now()) d *= (1 - player.buffs.cryDR); if (player.effects.manaShield > 0 && player.mp > 0) { const ab = Math.min(d * player.effects.manaShield, player.mp); player.mp -= ab; d -= ab; } player.hp -= d; if (player.hp < 0) player.hp = 0; floatText('-' + Math.round(d), player.x, player.z, '#ff5b4b'); sfx('hurt'); shake = Math.min(1.6, shake + 0.6); const hf = document.getElementById('hurtFlash'); hf.style.opacity = Math.min(0.6, 0.25 + d / player.hpMax); clearTimeout(hf._t); hf._t = setTimeout(() => hf.style.opacity = 0, 120); if (mods && mods.includes && mods.includes('frozen')) { player.chillUntil = now() + 1500; floatText('Chilled', player.x, player.z - 1, '#9ff'); } updateGlobes(); if (player.hp <= 0) { sfx('die'); gameOver(); }
+  { const e = player.effects; let res = e.allRes || 0; if (mods && mods.length) { const RK = { fire: 'fireRes', frost: 'frostRes', lightning: 'lightningRes', poison: 'poisonRes' }; for (const id of mods) { const md = ELITE_MODS[id]; if (md && md.resist) res += e[RK[normElem(md.resist)]] || 0; } } if (res > 0) d *= (1 - Math.min(res, 75) / 100); } if (player.buffs.cryUntil > now()) d *= (1 - player.buffs.cryDR); if (player.buffs.stoneUntil > now()) d *= 0.7; if (player.effects.manaShield > 0 && player.mp > 0) { const ab = Math.min(d * player.effects.manaShield, player.mp); player.mp -= ab; d -= ab; } player.hp -= d; if (player.hp < 0) player.hp = 0; floatText('-' + Math.round(d), player.x, player.z, '#ff5b4b'); sfx('hurt'); shake = Math.min(1.6, shake + 0.6); const hf = document.getElementById('hurtFlash'); hf.style.opacity = Math.min(0.6, 0.25 + d / player.hpMax); clearTimeout(hf._t); hf._t = setTimeout(() => hf.style.opacity = 0, 120); if (mods && mods.length) { for (const id of mods) { const md = ELITE_MODS[id]; if (md && md.onHitPlayer) md.onHitPlayer(); } } updateGlobes(); if (player.hp <= 0) { sfx('die'); gameOver(); } return true;
 }
 
 function saveProgress(showNote) { if (currentSlot === null || !character) return false; character.level = player.level; character.xp = player.xp; character.xpNext = player.xpNext; character.gold = player.gold; character.kills = player.kills; character.potions = player.hpPotions; character.hpPotions = player.hpPotions; character.mpPotions = player.mpPotions; const ok = SAVE.saveCharacter(currentSlot, character); if (showNote || !ok) flashSaved(ok); return ok; } /* surface a failure even on a silent autosave — a full localStorage quietly loses progress otherwise */

@@ -40,9 +40,97 @@ const MUSIC = {
   start() { if (this.timer || Audio2.muted || !Audio2.ctx || !SAVE._data.settings.music) return; this.timer = setInterval(() => { if (Audio2.muted || !Audio2.ctx) return; const f = choice(this.scale) * (Math.random() < 0.3 ? 0.5 : 1); const o = Audio2.ctx.createOscillator(), g = Audio2.ctx.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.value = 0; g.gain.linearRampToValueAtTime(0.045, Audio2.ctx.currentTime + 0.6); g.gain.linearRampToValueAtTime(0.001, Audio2.ctx.currentTime + 2.6); o.connect(g); g.connect(Audio2.master); o.start(); o.stop(Audio2.ctx.currentTime + 2.7); }, 1900); },
   stop() { if (this.timer) { clearInterval(this.timer); this.timer = null; } }
 };
-const DIFF = { Normal: { hp: 1, dmg: 1, xp: 1 }, Hard: { hp: 1.6, dmg: 1.4, xp: 1.3 }, Hell: { hp: 2.6, dmg: 2, xp: 1.8 }, Inferno: { hp: 4, dmg: 3, xp: 2.5 } };
+/* Difficulty tiers change mechanics, not just multipliers: eliteAffixes = minimum affix count on elite packs,
+   density = spawn-wave size multiplier, resistBonus = extra monster resist deepening, reqDepth = the dungeon
+   depth a hero must reach before the tier unlocks (0 = always available). */
+const DIFF = {
+  Normal: { hp: 1, dmg: 1, xp: 1, eliteAffixes: 1, density: 1.0, resistBonus: 0, reqDepth: 0 },
+  Hard: { hp: 1.6, dmg: 1.4, xp: 1.3, eliteAffixes: 1, density: 1.15, resistBonus: 0.05, reqDepth: 8 },
+  Hell: { hp: 2.6, dmg: 2, xp: 1.8, eliteAffixes: 2, density: 1.3, resistBonus: 0.10, reqDepth: 20 },
+  Inferno: { hp: 4, dmg: 3, xp: 2.5, eliteAffixes: 3, density: 1.5, resistBonus: 0.15, reqDepth: 35 },
+};
 const DIFF_ORDER = ['Normal', 'Hard', 'Hell', 'Inferno'];
+/* A tier is earned, not toggled: unlocked once the LIVE hero has reached its reqDepth (in-game), or once any
+   saved hero has (main menu, where no character is loaded yet). */
+function diffUnlocked(name) {
+  const req = (DIFF[name] && DIFF[name].reqDepth) || 0; if (!req) return true;
+  let best = 0;
+  if (typeof character !== 'undefined' && character) best = character.maxDepth || 0;
+  else if (typeof SAVE !== 'undefined' && SAVE._data) { for (const s of SAVE._data.slots) { if (s && (s.maxDepth || 0) > best) best = s.maxDepth || 0; } }
+  return best >= req;
+}
 // endgame depth scaling (data-driven; early floors stay ~linear, late floors ramp up via the quadratic terms)
 const DSCALE = { hpLin: 0.4, hpQuad: 0.05, dmgLin: 0.28, dmgQuad: 0.04, xpLin: 0.5, xpQuad: 0.04, ilvlPerDepth: 2 };
 const BOSS_SCALE = { hpBase: 380, hpLin: 0.5, hpQuad: 0.05, dmgBase: 14, dmgLin: 0.3, dmgQuad: 0.03, xpBase: 300, xpLin: 0.6 };
 let shake = 0;
+/* ================= DUNGEON LAYOUT (pure & browser-free — tests/layout.test.js loads this file) =================
+   Coarse-grid room generator: the ±half hall is cut into a G×G grid of cells, adjacent cells merge into 6–9
+   rooms (union-find), a randomized-Kruskal spanning tree over the room graph carves one door per tree edge
+   (+~25% loop doors), and every remaining inter-room border becomes a wall segment. Connectivity is guaranteed
+   by construction. The renderer (09-dungeon) stamps `walls` as instanced pieces + collider-circle chains;
+   boss floors skip generation entirely (open arenas). */
+function genDungeonLayout(half, depth) {
+  const G = 5, cs = (2 * half) / G;
+  const parent = []; for (let k = 0; k < G * G; k++) parent[k] = k;
+  const find = k => { while (parent[k] !== k) { parent[k] = parent[parent[k]]; k = parent[k]; } return k; };
+  const pairs = [];
+  for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { if (i + 1 < G) pairs.push([i * G + j, (i + 1) * G + j]); if (j + 1 < G) pairs.push([i * G + j, i * G + (j + 1)]); }
+  for (let k = pairs.length - 1; k > 0; k--) { const r = randi(0, k); const t = pairs[k]; pairs[k] = pairs[r]; pairs[r] = t; }
+  let regions = G * G; const targetRooms = randi(6, 9);
+  for (const [a, b] of pairs) { if (regions <= targetRooms) break; const ra = find(a), rb = find(b); if (ra !== rb) { parent[ra] = rb; regions--; } }
+  const idMap = new Map(); const roomOf = [];
+  for (let i = 0; i < G; i++) { roomOf[i] = []; for (let j = 0; j < G; j++) { const r = find(i * G + j); let v = idMap.get(r); if (v === undefined) { v = idMap.size; idMap.set(r, v); } roomOf[i][j] = v; } }
+  const R = idMap.size; const rooms = [];
+  for (let r = 0; r < R; r++) rooms.push({ id: r, cells: [], cx: 0, cz: 0 });
+  for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) rooms[roomOf[i][j] || 0].cells.push([i, j]);
+  for (const rm of rooms) { let sx = 0, sz = 0; for (const [i, j] of rm.cells) { sx += -half + (i + 0.5) * cs; sz += -half + (j + 0.5) * cs; } rm.cx = sx / rm.cells.length; rm.cz = sz / rm.cells.length; }
+  const borders = []; // inter-room border cells: between (i,j) and its +x (vert) or +z neighbor
+  for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) {
+    if (i + 1 < G && roomOf[i][j] !== roomOf[i + 1][j]) borders.push({ a: roomOf[i][j], b: roomOf[i + 1][j], vert: true, i, j });
+    if (j + 1 < G && roomOf[i][j] !== roomOf[i][j + 1]) borders.push({ a: roomOf[i][j], b: roomOf[i][j + 1], vert: false, i, j });
+  }
+  for (let k = borders.length - 1; k > 0; k--) { const r = randi(0, k); const t = borders[k]; borders[k] = borders[r]; borders[r] = t; }
+  const rp = []; for (let r = 0; r < R; r++) rp[r] = r;
+  const rfind = k => { while (rp[k] !== k) { rp[k] = rp[rp[k]]; k = rp[k]; } return k; };
+  const doorSet = new Set(); const doors = [];
+  const addDoor = bd => { doorSet.add(bd); doors.push({ a: bd.a, b: bd.b, x: bd.vert ? -half + (bd.i + 1) * cs : -half + (bd.i + 0.5) * cs, z: bd.vert ? -half + (bd.j + 0.5) * cs : -half + (bd.j + 1) * cs }); };
+  for (const bd of borders) { const ra = rfind(bd.a), rb = rfind(bd.b); if (ra !== rb) { rp[ra] = rb; addDoor(bd); } }
+  for (const bd of borders) { if (!doorSet.has(bd) && Math.random() < 0.25) addDoor(bd); }
+  const DOOR_W = 9, walls = [];
+  for (const bd of borders) {
+    const x0 = bd.vert ? -half + (bd.i + 1) * cs : -half + bd.i * cs;
+    const z0 = bd.vert ? -half + bd.j * cs : -half + (bd.j + 1) * cs;
+    if (!doorSet.has(bd)) { walls.push({ x1: x0, z1: z0, x2: bd.vert ? x0 : x0 + cs, z2: bd.vert ? z0 + cs : z0 }); continue; }
+    const side = (cs - DOOR_W) / 2;
+    if (bd.vert) { walls.push({ x1: x0, z1: z0, x2: x0, z2: z0 + side }); walls.push({ x1: x0, z1: z0 + cs - side, x2: x0, z2: z0 + cs }); }
+    else { walls.push({ x1: x0, z1: z0, x2: x0 + side, z2: z0 }); walls.push({ x1: x0 + cs - side, z1: z0, x2: x0 + cs, z2: z0 }); }
+  }
+  const adj = []; for (let r = 0; r < R; r++) adj.push([]);
+  for (const d of doors) { adj[d.a].push(d.b); adj[d.b].push(d.a); }
+  const spawnRoom = roomOf[G >> 1][G >> 1]; // world (0,0) — the fixed player entry — is the center cell's room
+  const dist = new Array(R).fill(-1); dist[spawnRoom] = 0; const q = [spawnRoom];
+  while (q.length) { const r = q.shift(); for (const n of adj[r]) { if (dist[n] < 0) { dist[n] = dist[r] + 1; q.push(n); } } }
+  let portalRoom = spawnRoom; for (let r = 0; r < R; r++) { if (dist[r] > dist[portalRoom]) portalRoom = r; }
+  const pr = rooms[portalRoom]; let pc = pr.cells[0], pb = 1e9;
+  for (const c of pr.cells) { const px = -half + (c[0] + 0.5) * cs, pz = -half + (c[1] + 0.5) * cs; const dd = Math.abs(px - pr.cx) + Math.abs(pz - pr.cz); if (dd < pb) { pb = dd; pc = c; } }
+  return { G, cs, half, roomOf, rooms, doors, walls, spawnRoom, portalRoom, dist, portal: { x: -half + (pc[0] + 0.5) * cs, z: -half + (pc[1] + 0.5) * cs } };
+}
+function layoutRoomAt(lay, x, z) { if (!lay) return -1; const i = clamp(Math.floor((x + lay.half) / lay.cs), 0, lay.G - 1), j = clamp(Math.floor((z + lay.half) / lay.cs), 0, lay.G - 1); return lay.roomOf[i][j]; }
+/* Room-aware spawn/placement point: inside the room at (px,pz) or a door-adjacent one, ≥12u away, with a cell
+   margin so straight-line chase AI never starts wedged against a wall. Null when there is no layout. */
+function layoutSpawnPoint(lay, px, pz) {
+  if (!lay) return null;
+  const pr = layoutRoomAt(lay, px, pz); const cands = [pr];
+  for (const d of lay.doors) { if (d.a === pr) cands.push(d.b); else if (d.b === pr) cands.push(d.a); }
+  for (let t = 0; t < 12; t++) {
+    const rm = lay.rooms[cands[randi(0, cands.length - 1)]]; const c = rm.cells[randi(0, rm.cells.length - 1)];
+    const x = -lay.half + c[0] * lay.cs + rand(5, lay.cs - 5), z = -lay.half + c[1] * lay.cs + rand(5, lay.cs - 5);
+    if (Math.hypot(x - px, z - pz) > 12) return { x, z };
+  }
+  const rm = lay.rooms[pr]; return { x: rm.cx, z: rm.cz };
+}
+/* A random interior point of a SPECIFIC room (used for shrines/chests). */
+function layoutRoomPoint(lay, roomId, margin) {
+  const rm = lay.rooms[roomId]; const c = rm.cells[randi(0, rm.cells.length - 1)]; const m = margin || 6;
+  return { x: -lay.half + c[0] * lay.cs + rand(m, lay.cs - m), z: -lay.half + c[1] * lay.cs + rand(m, lay.cs - m) };
+}

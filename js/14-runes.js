@@ -15,9 +15,9 @@ const RUNE_FLAG_INFO = {
   doubleCast: ['Echo Strike', 'Unleashes the skill a second time'],
 };
 // Skill kind -> rune archetype (drives which exclusive choices the tree offers).
-const RUNE_KIND = { fire: 'proj', frost: 'proj', arcaneorb: 'proj', nova: 'multiproj', multishot: 'multiproj', volley: 'multiproj', fanofknives: 'multiproj', chain: 'chain', cleave: 'aoe', whirl: 'aoe', leap: 'aoe', meteor: 'aoe', frostnova: 'aoe', groundslam: 'aoe', charge: 'aoe', blizzard: 'aoe', teleportstorm: 'aoe', warcry: 'util', secondwind: 'util', blink: 'util', shadowstep: 'util' };
+const RUNE_KIND = { fire: 'proj', frost: 'proj', arcaneorb: 'proj', nova: 'multiproj', multishot: 'multiproj', volley: 'multiproj', fanofknives: 'multiproj', chain: 'chain', cleave: 'aoe', whirl: 'aoe', leap: 'aoe', meteor: 'aoe', frostnova: 'aoe', groundslam: 'aoe', charge: 'aoe', blizzard: 'aoe', teleportstorm: 'aoe', warcry: 'util', secondwind: 'util', blink: 'util', shadowstep: 'util', rend: 'aoe', frenzy: 'util', shockwave: 'proj' };
 function _runeShape(kc) {
-  if (kc === 'proj') return [{ flag: 'explodeOnImpact', mod: { addRadius: 3 } }, { flag: 'fork' }, { flag: 'pierceAll' }];
+  if (kc === 'proj') return [{ flag: 'explodeOnImpact', mod: { addRadius: 3 } }, { flag: 'lingering' }, { flag: 'pierceAll' }];
   if (kc === 'multiproj') return [{ flag: 'explodeOnImpact', mod: { addRadius: 3 } }, { flag: 'fork' }, { flag: 'freeze' }];
   if (kc === 'chain') return [{ mod: { addRadius: 2 }, label: 'Wide Arc' }, { flag: 'doubleCast' }, { mod: { dmgMult: 0.25 }, label: 'Overload' }];
   if (kc === 'aoe') return [{ mod: { addRadius: 3 }, label: 'Wide Reach' }, { flag: 'doubleCast' }, { mod: { dmgMult: 0.25 }, label: 'Overpower' }];
@@ -39,6 +39,9 @@ function buildSkillTree(id) {
   if (kc === 'multiproj' || kc === 'chain') { N(id + '_proj', 0, 8, 'minor', 2, 2, base, { addProj: 1 }, [], kc === 'chain' ? 'Arc Splitter' : 'Extra Bolt'); L(root, id + '_proj'); }
   const shapes = _runeShape(kc); const sx = [-80, 0, 80];
   shapes.forEach((s, i) => { const nid = id + '_sh' + i; const lab = s.label || (s.flag && RUNE_FLAG_INFO[s.flag] ? RUNE_FLAG_INFO[s.flag][0] : 'Rune'); N(nid, sx[i], 80, 'notable', 1, 2, base + 2, s.mod || {}, s.flag ? [s.flag] : [], lab, 'shape'); L(i === 0 ? id + '_cdr' : i === 2 ? id + '_mana' : root, nid); });
+  // side notables off the utility arms: these flags only act on projectiles (applyRuneProj), so they live on proj/multiproj trees only
+  if (kc === 'proj') { N(id + '_vamp', -124, 28, 'notable', 1, 2, base + 2, {}, ['vampiric'], RUNE_FLAG_INFO.vampiric[0]); L(id + '_cdr', id + '_vamp'); }
+  if (kc === 'multiproj') { N(id + '_cnova', -124, 28, 'notable', 1, 2, base + 2, {}, ['chillNova'], RUNE_FLAG_INFO.chillNova[0]); L(id + '_cdr', id + '_cnova'); N(id + '_kb', 124, 28, 'notable', 1, 2, base + 2, {}, ['knockback'], RUNE_FLAG_INFO.knockback[0]); L(id + '_mana', id + '_kb'); }
   const key = _runeKey(kc); N(id + '_key', 0, 158, 'keystone', 1, 3, base + 4, key.mod || {}, key.flag ? [key.flag] : [], key.label);
   // Link the keystone to ALL three shape nodes. The shapes are mutually exclusive (excl:'shape'), so linking
   // only to sh1 meant picking sh0 or sh2 left sh1 permanently blocked and the keystone unreachable forever.

@@ -20,14 +20,16 @@ const NET = {
     let r = this.remotes.get(m.id); if (!r) { const mesh = buildHero(); mesh.scale.set(0.96, 0.96, 0.96); mesh.visible = false; scene.add(mesh); r = { mesh }; this.remotes.set(m.id, r); }
     // Coerce every relayed field — the relay forwards peer payloads verbatim, so a NaN/string x/z/dir would
     // poison the scene-graph transform (and the projected nameplate), and an unknown class must not recolor.
-    r.x = +m.x || 0; r.z = +m.z || 0; r.dir = +m.dir || 0; r.zone = m.zone; r.depth = +m.depth || 0; r.name = String(m.name || 'Player').slice(0, 24); r.cls = m.cls; r.level = +m.level || 1; r.hp = +m.hp || 0; r.hpMax = +m.hpMax || 1;
+    const nx = +m.x || 0, nz = +m.z || 0; r.tx = nx; r.tz = nz;
+    if (r.x === undefined || Math.hypot(nx - r.x, nz - r.z) > 20) { r.x = nx; r.z = nz; } // snap on spawn/teleport; otherwise tick() lerps toward the target so ~9Hz updates don't stutter
+    r.dir = +m.dir || 0; r.zone = m.zone; r.depth = +m.depth || 0; r.name = String(m.name || 'Player').slice(0, 24); r.cls = m.cls; r.level = +m.level || 1; r.hp = +m.hp || 0; r.hpMax = +m.hpMax || 1;
     if (r.mesh.userData.cloak && Object.prototype.hasOwnProperty.call(CLASSES, m.cls)) r.mesh.userData.cloak.material.color.setHex(CLASSES[m.cls].col);
   },
   removeRemote(id) { const r = this.remotes.get(id); if (r) { removeMesh(r.mesh); this.remotes.delete(id); } },
   clearRemotes() { for (const [, r] of this.remotes) removeMesh(r.mesh); this.remotes.clear(); },
   tick(dt) {
     if (!this.connected) return; this.sendT -= dt; if (this.sendT <= 0 && character && running) { this.sendT = 110; this.send({ t: 'state', x: +player.x.toFixed(2), z: +player.z.toFixed(2), dir: +player.dir.toFixed(2), zone, depth, name: this.name || character.name, cls: character.class, level: player.level, hp: Math.round(player.hp), hpMax: player.hpMax }); }
-    for (const [, r] of this.remotes) { const vis = (running && r.zone === zone && r.depth === depth); r.mesh.visible = vis; if (vis) { r.mesh.position.set(r.x, Math.abs(Math.sin(now() * 0.005)) * 0.12, r.z); r.mesh.rotation.y = r.dir || 0; } }
+    for (const [, r] of this.remotes) { const vis = (running && r.zone === zone && r.depth === depth); r.mesh.visible = vis; if (vis) { if (r.tx !== undefined) { const k = Math.min(1, dt / 110); r.x += (r.tx - r.x) * k; r.z += (r.tz - r.z) * k; } r.mesh.position.set(r.x, Math.abs(Math.sin(now() * 0.005)) * 0.12, r.z); r.mesh.rotation.y = r.dir || 0; } }
   },
   status(s) { const el = document.getElementById('mpStatus'); if (el) el.textContent = s; },
   refreshUI() { const c = this.connected; document.getElementById('mpConnect').style.display = c ? 'none' : 'block'; document.getElementById('mpDisconnect').style.display = c ? 'block' : 'none'; document.getElementById('mpChatWrap').style.display = c ? 'block' : 'none'; },
