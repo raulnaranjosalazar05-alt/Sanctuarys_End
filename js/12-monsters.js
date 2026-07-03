@@ -4,21 +4,48 @@ let monsters = [], projectiles = [], loots = [], floats = [], fx = []; let targe
    singletons (no per-frame closure alloc); arr.length=w truncates in place (no realloc). Order-preserving. */
 function _compact(arr, dead, kill) { let w = 0; for (let i = 0; i < arr.length; i++) { const it = arr[i]; if (dead(it)) { if (kill) kill(it); } else arr[w++] = it; } arr.length = w; }
 const _deadLife0 = o => o.life <= 0, _deadFlag = o => o.dead, _killMesh = o => removeMesh(o.mesh);
+/* Monster types. Optional onAI(m, d, fr) gives a type its signature move — dispatched each un-stunned frame
+   from the monster loop (17-update); the base chase/kite/melee behavior still runs after it. All specials
+   telegraph before they land (spawnTelegraph, 15-combat) so they can be dodged. */
 const MTYPES = {
-  zombie: { hp: 30, dmg: 6, speed: 0.10, r: 1.4, col: 0x6a8a4a, xp: 8, scale: 1.1, name: 'Zombie', resist: { poison: 0.5, fire: 1.25 } }, fallen: { hp: 18, dmg: 5, speed: 0.19, r: 1.1, col: 0xb04a3a, xp: 6, scale: 0.8, name: 'Fallen', resist: { fire: 0.5, frost: 1.25 } }, brute: { hp: 95, dmg: 14, speed: 0.09, r: 2.0, col: 0x7a6a8a, xp: 22, scale: 1.8, name: 'Brute', resist: { fire: 0.5, frost: 1.25 } }, shaman: { hp: 42, dmg: 10, speed: 0.13, r: 1.3, col: 0x3aa0a0, xp: 15, scale: 1.0, ranged: true, name: 'Shaman', resist: { frost: 0.5, lightning: 1.25 } },
+  zombie: { hp: 30, dmg: 6, speed: 0.10, r: 1.4, col: 0x6a8a4a, xp: 8, scale: 1.1, name: 'Zombie', resist: { poison: 0.5, fire: 1.25 } }, fallen: { hp: 18, dmg: 5, speed: 0.19, r: 1.1, col: 0xb04a3a, xp: 6, scale: 0.8, name: 'Fallen', resist: { fire: 0.5, frost: 1.25 } },
+  brute: {
+    hp: 95, dmg: 14, speed: 0.09, r: 2.0, col: 0x7a6a8a, xp: 22, scale: 1.8, name: 'Brute', resist: { fire: 0.5, frost: 1.25 },
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 300); m.spCd -= fr; if (m.spCd <= 0 && d > 8 && d < 32) { m.spCd = 420; const tx = player.x, tz = player.z; m.slow = Math.max(m.slow, 40); spawnTelegraph(tx, tz, 2.8, 550, 0xff8a3a, () => { if (m.hp <= 0) return; const a = Math.atan2(tx - m.x, tz - m.z); m.x = tx - Math.sin(a) * 1.2; m.z = tz - Math.cos(a) * 1.2; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xc4a050); if (Math.hypot(player.x - m.x, player.z - m.z) < 3.4) { damagePlayer(m.dmg * 1.3, m.elite); applyStatus(player, 'stun', 500, 0); floatText('Stunned!', player.x, player.z - 1, '#ffcf6a'); } }); } }
+  },
+  shaman: {
+    hp: 42, dmg: 10, speed: 0.13, r: 1.3, col: 0x3aa0a0, xp: 15, scale: 1.0, ranged: true, name: 'Shaman', resist: { frost: 0.5, lightning: 1.25 },
+    onAI(m, d, fr) { if (m.htCd == null) m.htCd = randi(240, 420); m.htCd -= fr; if (m.htCd <= 0 && d < 44) { m.htCd = 620; let totems = 0; for (const o of monsters) if (o.type === 'totem') totems++; if (totems >= 3) return; const tm = spawnMonster('totem', null, { x: m.x + rand(-3, 3), z: m.z + rand(-3, 3) }); if (tm) { tm.showName = true; spawnExplosion(tm.x, tm.z, 0x3ad0a0); } } }
+  },
   skeleton: { hp: 26, dmg: 8, speed: 0.14, r: 1.2, col: 0xd8d0c0, xp: 12, scale: 1.0, name: 'Skeleton', resist: { poison: 0.25, phys: 1.15, fire: 1.15 } },
   imp: { hp: 16, dmg: 7, speed: 0.22, r: 0.9, col: 0xd0402a, xp: 11, scale: 0.7, name: 'Imp', resist: { fire: 0.4, frost: 1.3 } },
-  hellhound: { hp: 34, dmg: 12, speed: 0.24, r: 1.2, col: 0x6a1a14, xp: 18, scale: 0.95, name: 'Hellhound', resist: { fire: 0.4, frost: 1.25 } },
-  wraith: { hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 } }
+  hellhound: {
+    hp: 34, dmg: 12, speed: 0.24, r: 1.2, col: 0x6a1a14, xp: 18, scale: 0.95, name: 'Hellhound', resist: { fire: 0.4, frost: 1.25 },
+    onAI(m, d, fr) { if (m.spCd == null) m.spCd = randi(120, 260); m.spCd -= fr; if (m.spCd <= 0 && d > 7 && d < 26) { m.spCd = 360; const tx = player.x, tz = player.z; spawnTelegraph(tx, tz, 2.4, 450, 0xff3a20, () => { if (m.hp <= 0) return; m.x = tx; m.z = tz; clampEntToZone(m); spawnExplosion(m.x, m.z, 0xff3a20); if (Math.hypot(player.x - m.x, player.z - m.z) < 2.8) damagePlayer(m.dmg * 1.15, m.elite); }); } }
+  },
+  wraith: {
+    hp: 30, dmg: 11, speed: 0.12, r: 1.2, col: 0x6a4a9a, xp: 16, scale: 1.1, ranged: true, name: 'Wraith', resist: { poison: 0.4, phys: 0.6, fire: 1.2 },
+    onAI(m, d, fr) { if (m.blCd == null) m.blCd = randi(220, 380); m.blCd -= fr; if (m.blCd <= 0 && d < 40) { m.blCd = 380; spawnExplosion(m.x, m.z, 0x9f6aff); const a = Math.atan2(player.x - m.x, player.z - m.z) + (Math.random() < 0.5 ? -1 : 1) * rand(1.2, 1.9); m.x = player.x - Math.sin(a) * 18; m.z = player.z - Math.cos(a) * 18; clampEntToZone(m); spawnExplosion(m.x, m.z, 0x9f6aff); } }
+  },
+  totem: {
+    hp: 22, dmg: 0, speed: 0, r: 0.9, col: 0x3ad0a0, xp: 6, scale: 0.9, name: 'Healing Totem', stationary: true, resist: { phys: 1.2 },
+    onAI(m, d, fr) { if (m.pulseCd == null) m.pulseCd = 90; m.pulseCd -= fr; if (m.pulseCd <= 0) { m.pulseCd = 90; let healed = false; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.hpMax && !o.boss && Math.hypot(o.x - m.x, o.z - m.z) < 14) { o.hp = Math.min(o.hpMax, o.hp + o.hpMax * 0.03); healed = true; } } if (healed) spawnExplosion(m.x, m.z, 0x3ad0a0); } }
+  },
 };
+/* Elite affixes. Stat fields (speed/dmg/hp/resist) fold in spawnMonster; behavior lives in optional hooks:
+   onAI(m, d, fr) each un-stunned frame, onHitPlayer() after the player takes a hit carrying this affix,
+   onDeath(m) from killMonster. All behavior is table data — no scattered name checks. */
 const ELITE_MODS = {
   swift: { name: 'Swift', col: 0x6affa0, speed: 1.6 },
   mighty: { name: 'Mighty', col: 0xff5040, dmg: 1.6 },
   vile: { name: 'Vile', col: 0x8a5ac0, hp: 1.6 },
-  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', explode: true },
-  frozen: { name: 'Frozen', col: 0x6ad8ff, resist: 'frost', chill: true },
-  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', shoot: true },
+  fiery: { name: 'Fiery', col: 0xff7a2a, resist: 'fire', onDeath(m) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, ['fiery']); spawnExplosion(m.x, m.z, 0xff7a2a); } },
+  frozen: { name: 'Frozen', col: 0x6ad8ff, resist: 'frost', onHitPlayer() { player.chillUntil = now() + 1500; floatText('Chilled', player.x, player.z - 1, '#9ff'); } },
+  arcane: { name: 'Arcane', col: 0xc06aff, resist: 'lightning', onAI(m, d, fr) { m.arcaneCd -= fr; if (m.arcaneCd <= 0 && d < 55) { m.arcaneCd = 90; const a = Math.atan2(player.x - m.x, player.z - m.z); const pm = makeOrb(m.x, 2, m.z, 0xc06aff, 0.5); scene.add(pm); projectiles.push({ x: m.x, z: m.z, vx: Math.sin(a) * 0.5, vz: Math.cos(a) * 0.5, dmg: m.dmg, kind: 'enemy', life: 150, mesh: pm, mods: m.elite }); } } },
   toxic: { name: 'Toxic', col: 0x8fe07a, resist: 'poison' },
+  molten: { name: 'Molten', col: 0xff5020, resist: 'fire', onAI(m, d, fr) { if (m.moltCd == null) m.moltCd = 30; m.moltCd -= fr; if (m.moltCd <= 0) { m.moltCd = 42; spawnHazard(m.x, m.z, 2.6, 3500, m.dmg * 0.5, 0xff5020); } } },
+  waller: { name: 'Walling', col: 0xc08aff, onAI(m, d, fr) { if (m.wallCd == null) m.wallCd = randi(90, 200); m.wallCd -= fr; if (m.wallCd <= 0 && d > 8 && d < 40) { m.wallCd = 320; const a = Math.atan2(player.x - m.x, player.z - m.z); const px = player.x + Math.sin(a) * 6, pz = player.z + Math.cos(a) * 6, wa = a + Math.PI / 2; for (const off of [-1, 0, 1]) spawnWallSeg(px + Math.sin(wa) * off * 2.7, pz + Math.cos(wa) * off * 2.7, 4000); floatText('Walled!', player.x, player.z - 1, '#c08aff'); } } },
+  vortex: { name: 'Vortex', col: 0x9f6aff, onAI(m, d, fr) { if (m.vortCd == null) m.vortCd = randi(120, 260); m.vortCd -= fr; if (m.vortCd <= 0 && d > 10 && d < 34) { m.vortCd = 440; const mx = m.x, mz = m.z; spawnTelegraph(player.x, player.z, 2.2, 700, 0x9f6aff, () => { const dd = Math.hypot(player.x - mx, player.z - mz); if (dd > 6) { const a2 = Math.atan2(mx - player.x, mz - player.z); player.x += Math.sin(a2) * dd * 0.6; player.z += Math.cos(a2) * dd * 0.6; clampToZone(); player.chillUntil = now() + 900; floatText('Vortex!', player.x, player.z, '#9f6aff'); } }); } } },
 };
 /* ---------- elemental damage typing + monster resistances (unit 2) ---------- */
 const ELEMENTS = ['fire', 'frost', 'poison', 'lightning', 'phys'];

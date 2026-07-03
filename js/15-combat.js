@@ -53,7 +53,7 @@ function castChain(rank, skM, R) {
 }
 function spawnLightning(pts) { const ln = poolLine(), arr = ln.geometry.attributes.position.array, n = Math.min(pts.length, _LINE_PTS); for (let i = 0; i < n; i++) { arr[i * 3] = pts[i].x; arr[i * 3 + 1] = pts[i].y; arr[i * 3 + 2] = pts[i].z; } ln.geometry.setDrawRange(0, n); ln.geometry.attributes.position.needsUpdate = true; ln.geometry.boundingSphere = null; scene.add(ln); pushFx({ mesh: ln, life: 14 }); } /* pooled Line: own material (per-instance opacity fade), fixed max-point buffer reused via draw-range — was a fresh BufferGeometry+material every cast */
 /* shared FX/loot geometry+material caches (avoid per-event allocation + GPU-upload spikes) */
-const _LGEO = { gold: new THREE.SphereGeometry(0.4, 8, 8), pot: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), item: new THREE.OctahedronGeometry(0.55, 0), ring: new THREE.RingGeometry(0.85, 1.2, 28), expl: new THREE.SphereGeometry(6, 16, 12), spark: new THREE.TetrahedronGeometry(0.22, 0), flash: new THREE.SphereGeometry(0.5, 8, 8) };
+const _LGEO = { gold: new THREE.SphereGeometry(0.4, 8, 8), pot: new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), item: new THREE.OctahedronGeometry(0.55, 0), ring: new THREE.RingGeometry(0.85, 1.2, 28), expl: new THREE.SphereGeometry(6, 16, 12), spark: new THREE.TetrahedronGeometry(0.22, 0), flash: new THREE.SphereGeometry(0.5, 8, 8), wall: new THREE.BoxGeometry(1.7, 2.2, 1.7) };
 const _beamGeoC = {}; function _beamGeo(h, w) { const k = h + 'x' + w; return _beamGeoC[k] || (_beamGeoC[k] = new THREE.CylinderGeometry(w * 0.45, w, h, 10, 1, true)); }
 const _lootMatC = {}; function _lootMat(kind, col) { const k = kind + col; if (_lootMatC[k]) return _lootMatC[k]; let m; if (kind === 'gold') m = new THREE.MeshStandardMaterial({ color: 0xffd24d, emissive: 0x3a2900, emissiveIntensity: 0.5, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.3 }); else if (kind === 'potion') m = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0xff3a3a, emissive: 0x4a0000 }); else if (kind === 'manapotion') m = new THREE.MeshPhongMaterial({ specular: 0x000000, color: 0x3a5aff, emissive: 0x00104a }); else m = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: .45, metalness: 0.6, roughness: 0.35, envMapIntensity: 1.2 }); return _lootMatC[k] = m; }
 const _basicMatC = {}; function _basicMat(col, opacity) { const k = col + '_' + opacity; return _basicMatC[k] || (_basicMatC[k] = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); }
@@ -65,6 +65,25 @@ function spawnSparks(x, z, col, count) {
 }
 function impactFlash(x, z, col) { if (SAVE._data.settings.vfx === false) return; const m = poolMesh(_LGEO.flash, _basicMat(col, 0.7)); m.position.set(x, 1.6, z); const s0 = 1.7; m.scale.setScalar(s0); scene.add(m); pushFx({ mesh: m, life: 9, life0: 9, scale0: s0 }); }
 const _explMatC = {}; function spawnExplosion(x, z, col) { const mat = _explMatC[col] || (_explMatC[col] = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5, wireframe: true })); const m = poolMesh(_LGEO.expl, mat); m.position.set(x, 1.5, z); scene.add(m); pushFx({ mesh: m, life: 14 }); } /* ponytail: per-color wireframe mat cached (was a per-call alloc + a noDispose leak). Two same-color explosions overlapping share the opacity fade — negligible/rare. */
+/* ---------- ground hazards, telegraphs & temporary walls (shared by boss abilities + elite affixes) ----------
+   hazards damage the PLAYER while stood in them (spawnLingerField is the monster-damaging counterpart — never
+   route enemy ground effects through it); telegraphs are pooled warning rings that grow through their windup
+   then run a callback, giving every big hit a dodge window; temp walls are short-lived collider circles with
+   an energy-block visual. All are ticked by tickFieldFx() in update() and torn down by clearField(). */
+const hazards = [], telegraphs = [], tempWalls = [];
+function spawnTelegraph(x, z, r, ms, col, cb) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.55)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.22, z); m.scale.setScalar(r * 0.3); scene.add(m); telegraphs.push({ x, z, r, t: ms, t0: ms, mesh: m, cb }); }
+function spawnHazard(x, z, r, life, dps, col) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m }); }
+function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); tempWalls.push({ col, life, mesh: m }); }
+function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); return; } } }
+function tickFieldFx(dt) {
+  for (const tg of telegraphs) { tg.t -= dt; const p = 1 - Math.max(0, tg.t / tg.t0); tg.mesh.scale.setScalar(tg.r * (0.3 + 0.7 * p) * 0.85); if (tg.t <= 0) { tg.dead = true; removeMesh(tg.mesh); if (tg.cb) tg.cb(); } }
+  _compact(telegraphs, _deadFlag, null);
+  for (const h of hazards) { h.life -= dt; h.tk -= dt; if (h.tk <= 0 && Math.hypot(player.x - h.x, player.z - h.z) < h.r) { h.tk = 250; damagePlayer(h.dps * 0.25, null); } if (h.life <= 0) { h.dead = true; removeMesh(h.mesh); } }
+  _compact(hazards, _deadFlag, null);
+  for (const w of tempWalls) { w.life -= dt; if (w.life <= 0) { w.dead = true; _dropWallCol(w.col); removeMesh(w.mesh); } }
+  _compact(tempWalls, _deadFlag, null);
+}
+function clearFieldFx() { for (const tg of telegraphs) removeMesh(tg.mesh); telegraphs.length = 0; for (const h of hazards) removeMesh(h.mesh); hazards.length = 0; for (const w of tempWalls) { _dropWallCol(w.col); removeMesh(w.mesh); } tempWalls.length = 0; }
 const POTION_PCT = 0.40, POTION_TIER_PCT = 0.05;
 function potionHealAmt() { return Math.round(player.hpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
 function potionManaAmt() { return Math.round(player.mpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
@@ -134,7 +153,7 @@ function killMonster(m) {
     const ng = randi(3, 4); for (let i = 0; i < ng; i++) { const ang = i / ng * 6.28; dropLoot(m.x + Math.cos(ang) * 3, m.z + Math.sin(ang) * 3, 'item', rollItem(curScale.ilvl + 1)); }
     dropLoot(m.x, m.z, 'gold', Math.round(rand(120, 240) + depth * 18)); if (Math.random() < 0.6) dropLoot(m.x + 1, m.z, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.5 ? 0 : 1 });
   } else if (m.elite) {
-    if (m.elite.includes('fiery')) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(m.dmg * 1.4, []); spawnExplosion(m.x, m.z, 0xff7a2a); }
+    for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onDeath) md.onDeath(m); }
     let best = rollItem(curScale.ilvl + 2, null, 0.18); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.18); if (itemScore(c) > itemScore(best)) best = c; }
     dropLoot(m.x, m.z, 'item', best); dropLoot(m.x + 1, m.z, 'gold', Math.round(rand(20, 50) + player.level + depth * 6)); if (Math.random() < .5) dropLoot(m.x - 1, m.z, (Math.random() < 0.4 ? 'manapotion' : 'potion'), 1);
   } else {

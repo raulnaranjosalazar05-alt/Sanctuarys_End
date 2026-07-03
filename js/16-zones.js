@@ -3,7 +3,7 @@ let zone = 'town', depth = 0;
 let floorObj = null, shrines = [], shrineGroup = null; // per-floor bounty + dungeon shrines (ephemeral, rebuilt each enterDungeon)
 function isCombat() { return zone === 'wild' || zone === 'dungeon'; }
 let _fieldEpoch = 0; /* bumped on every field teardown; deferred combat ticks (blizzard/lingering fields) capture it and bail if it changed, so a cast can't keep detonating after a floor/zone change */
-function clearField() { _fieldEpoch++; for (const d of _dying) removeMesh(d.g); _dying.length = 0; for (const m of monsters) removeMob(m.mesh); for (const p of projectiles) removeMesh(p.mesh); for (const l of loots) removeMesh(l.mesh); for (const e of fx) removeMesh(e.mesh); monsters = []; projectiles = []; loots = []; fx = []; _spawnQueue.length = 0; _spawnCd = 0; target = null; moveTarget = null; boss = null; bossActive = false; _resetHudCache(); }
+function clearField() { _fieldEpoch++; for (const d of _dying) removeMesh(d.g); _dying.length = 0; for (const m of monsters) removeMob(m.mesh); for (const p of projectiles) removeMesh(p.mesh); for (const l of loots) removeMesh(l.mesh); for (const e of fx) removeMesh(e.mesh); monsters = []; projectiles = []; loots = []; fx = []; clearFieldFx(); _spawnQueue.length = 0; _spawnCd = 0; target = null; moveTarget = null; boss = null; bossActive = false; _resetHudCache(); }
 function setZoneVisuals() {
   wildGroup.visible = zone === 'wild'; townGroup.visible = zone === 'town'; dungeonGroup.visible = zone === 'dungeon'; dungeonExtraGroup.visible = zone === 'dungeon'; if (typeof markGlows === 'function') markGlows();
   playerGlow.intensity = PLAYER_GLOW[zone] || 0; /* Diablo-style player aura — on in dungeons, off in lit town/open wild */
