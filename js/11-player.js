@@ -65,7 +65,7 @@ function recompute() {
   eff.lifesteal += (bonus.leechAll || 0) / 100; eff.manaleech = (eff.manaleech || 0) + (bonus.manaLeech || 0) / 100 + (bonus.leechAll || 0) / 100;
   eff.critDmgPct = (eff.critDmgPct || 0) + (bonus.critDmg || 0);
   eff.burnProc = (eff.burnProc || 0) + (bonus.burnOnHit || 0); eff.bleedProc = (eff.bleedProc || 0) + (bonus.bleedOnHit || 0);
-  // unit 5 affixes: avoidance + farming. dodge/flatDR capped; mf overwrites the global lootLuck (composes additively with depthQuality/quality in luckyRarity).
+  // unit 5 affixes: avoidance + farming. dodge/flatDR capped; mf owns the gear half (lootLuck) — the depth half lives in zoneLuck (setScale) and the two compose additively in luckyRarity.
   eff.dodge = Math.min((bonus.dodge || 0) / 100, 0.6); eff.flatDR = Math.min((bonus.flatDR || 0) / 100, 0.5); eff.lifeOnHit = (bonus.lifeOnHit || 0);
   player.cdr = Math.min((bonus.cdr || 0) / 100, 0.5); player.goldFind = (bonus.gf || 0) / 100; lootLuck = (bonus.mf || 0) / 100;
   player.meleeMult = (cls.dmgMult || 1) * (1 + (0.06 * ber) + (pm.meleePct + pm.dmgPct) / 100); player.spellMult = (cls.spellMult || 1) * (1 + (0.06 * arc) + (pm.spellPct + pm.dmgPct) / 100); player.skillMult = 1 + (bonus.skilldmg || 0) / 100; player.activeSkillDmg = 1 + (bonus.activeskill || 0) / 100; player.elemMult = { fire: 1 + (bonus.fireDmg || 0) / 100, frost: 1 + (bonus.coldDmg || 0) / 100, lightning: 1 + (bonus.lightDmg || 0) / 100, poison: 1 + (bonus.poisonDmg || 0) / 100, phys: 1 }; player.effects = eff; player.speed = 0.32 * (1 + Math.min(eff.movespeed || 0, 0.75));

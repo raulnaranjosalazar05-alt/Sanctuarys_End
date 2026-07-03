@@ -1,6 +1,6 @@
 function castActive(id, aim, isEcho) {
   const def = SKILLDEFS[id]; let rank = character.skills[id]; if (!def || rank < 1) return; if (_SPK.on) _ev('cast:' + id); rank += (player.effects.allskills || 0); const R = resolveSkill(id);
-  const t = now(); const cost = Math.round(def.cost * R.costMult); if (!isEcho) { if (t - (_cd[id] || -9999) < skillCd(def, id)) return; if (player.mp < cost) { floatText('No mana', player.x, player.z, '#88aaff'); return; } _cd[id] = t; player.mp -= cost; updateGlobes(); sfx(SFX_FOR[def.kind] || def.kind); }
+  const t = now(); const cost = Math.round(def.cost * R.costMult); if (!isEcho) { if (t - (_cd[id] || -9999) < skillCd(def, id)) return; if (player.mp < cost) { floatText('No mana', player.x, player.z, '#88aaff'); return; } _cd[id] = t; player.mp -= cost; _ev('cast'); updateGlobes(); sfx(SFX_FOR[def.kind] || def.kind); }
   const ang = Math.atan2(aim.x - player.x, aim.z - player.z) + (isEcho ? rand(-0.12, 0.12) : 0); player.dir = ang; player.swing = now(); const fwd = { x: Math.sin(ang), z: Math.cos(ang) }; const skM = (player.skillMult || 1) * ((id === character.activeSkillId) ? (player.activeSkillDmg || 1) : 1); const eb = empowerMul(); const sm = player.spellMult * skM * eb, mm = player.meleeMult * skM * eb;
   const _C = SKILL_COEF[def.kind]; const cf = ((_C && _C.coef) ? _C.coef(rank) : 1) * R.dmgMult;
   if (def.kind === 'fire') applyRuneProj(spawnProj(player.x, player.z, fwd, 0.9, player.dmg * cf * sm, 'fire', 120, def.onHit), R);
@@ -42,7 +42,9 @@ function makeOrb(x, y, z, hex, r) { const m = poolMesh(_orbGeo, projMat(hex)); m
    ⇒ GC pause) and the game events that fired that frame (loot/kill/cast/new-monster-type) — so a real-play hitch can
    be attributed to GC vs first-render-compile vs a specific event. Drive via window.__spikeStart()/__spikeStop(). */
 const _SPK = { on: false, thresh: 40, spikes: [], ev: {}, rates: {}, seen: new Set(), lcSeen: new Set(), t0: 0 };
-function _ev(n) { if (!_SPK.on) return; _SPK.ev[n] = (_SPK.ev[n] || 0) + 1; _SPK.rates[n] = (_SPK.rates[n] || 0) + 1; }
+/* _ev is the game's event bus: kill/killElite/killBoss, loot:*, cast, levelup, float. It fires unconditionally
+   (hot path = one property read) so the achievement Journal can watch it; the spike-profiler tally stays gated. */
+function _ev(n) { if (ACH_EV_INDEX[n]) achBump(n); if (!_SPK.on) return; _SPK.ev[n] = (_SPK.ev[n] || 0) + 1; _SPK.rates[n] = (_SPK.rates[n] || 0) + 1; }
 function spawnProj(x, z, dir, sp, dmg, kind, slow, onHit) { const col = kind === 'frost' ? 0x9fe8ff : kind === 'poison' ? 0x8fe07a : (kind === 'phys' ? 0xd8d8e8 : 0xff8a3a); const mesh = makeOrb(x, 2, z, col, 0.5); scene.add(mesh); const pierce = ((kind === 'phys' || kind === 'poison') ? (player.effects.pierce || 0) : 0); const p = { x, z, vx: dir.x * sp, vz: dir.z * sp, dmg, kind, life: 120, mesh, slow: slow || 120, onHit: onHit || null, hit: pierce > 0 ? new Set() : null, pierce }; projectiles.push(p); return p; }
 function castChain(rank, skM, R) {
   skM = skM || 1; R = R || resolveSkill('chain'); let dmg = player.dmg * SKILL_COEF.chain.coef(rank) * skM * R.dmgMult; const jumps = 2 + rank + R.addProj; const hitSet = new Set(); let cur = { x: player.x, z: player.z }; const pts = [new THREE.Vector3(player.x, 2.6, player.z)];
@@ -148,7 +150,7 @@ function killMonster(m) {
 function gainXP(n) {
   player.xp += n; let leveled = false;
   while (player.xp >= player.xpNext) {
-    player.xp -= player.xpNext; player.level++; character.level = player.level; player.xpNext = Math.round(player.xpNext * 1.45);
+    player.xp -= player.xpNext; player.level++; character.level = player.level; player.xpNext = Math.round(player.xpNext * 1.45); _ev('levelup');
     const gr = (CLASSES[character.class] || CLASSES.warrior).grow; character.base.hpMax += gr.hp; character.base.mpMax += gr.mp; character.base.dmg += gr.dmg; character.skillPoints += 2; character.abilityPoints = (character.abilityPoints || 0) + 1;
     recompute(); syncActives(); renderSkillbar(); player.hp = player.hpMax; player.mp = player.mpMax; setLevelText(player.level); showMsg('Level Up!  Lv ' + player.level); sfx('level'); leveled = true;
   }

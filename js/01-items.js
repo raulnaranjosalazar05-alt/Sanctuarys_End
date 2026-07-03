@@ -122,10 +122,16 @@ function rollSockets(slot, rarity) {
 function gemFold(it, bonus) { if (!it.sockets) return; for (const g of it.sockets) { if (!g) continue; const e = gemEff(it.slot, g); if (e) bonus[e.key] = (bonus[e.key] || 0) + e.vals[g.q]; } }
 let _itemId = 1;
 function rollRarity() { const r = Math.random(); if (r < 0.40) return 'common'; if (r < 0.73) return 'magic'; if (r < 0.92) return 'rare'; if (r < 0.98) return 'set'; return 'unique'; }
-let lootLuck = 0; const RARITY_LADDER = ['common', 'magic', 'rare', 'set', 'unique'];
+let lootLuck = 0; // gear Magic Find, owned by recompute
+let zoneLuck = 0; // depth-based zone luck, owned by setScale — composes additively with lootLuck in luckyRarity
+const RARITY_LADDER = ['common', 'magic', 'rare', 'set', 'unique'];
+/* Achievement event watch-table + bump hook, consumed by _ev (15-combat.js). Declared in this first
+   browser-free file so _ev's fast path is one property read at any load stage; the Journal unit populates it. */
+const ACH_EV_INDEX = {};
+function achBump(n) { }
 function bumpRarity(r, n) { let i = RARITY_LADDER.indexOf(r); i = Math.min(RARITY_LADDER.length - 1, i + n); return RARITY_LADDER[i]; }
 function depthQuality() { const d = (typeof depth === 'number' ? depth : 0); return (typeof zone !== 'undefined' && zone === 'dungeon') ? Math.min(0.4, d * 0.02) : 0; }
-function luckyRarity(bonus) { let r = rollRarity(); const p = Math.min(0.8, (lootLuck || 0) + (bonus || 0)); if (p > 0) { if (Math.random() < p) r = bumpRarity(r, 1); if (Math.random() < p * 0.35) r = bumpRarity(r, 1); } return r; }
+function luckyRarity(bonus) { let r = rollRarity(); const p = Math.min(0.8, (zoneLuck || 0) + (lootLuck || 0) + (bonus || 0)); if (p > 0) { if (Math.random() < p) r = bumpRarity(r, 1); if (Math.random() < p * 0.35) r = bumpRarity(r, 1); } return r; }
 function buildUnique(def, ilvl) { const a = {}; for (const k in def.affixes) a[k] = def.affixes[k]; return { id: _itemId++, slot: def.slot, rarity: 'unique', ilvl, base: def.name, baseStat: def.base ? Math.round(def.base + ilvl * 0.8) : 0, affixes: a, effect: def.effect, effVal: def.effVal, effectDesc: def.desc, upgrade: 0, sockets: rollSockets(def.slot, 'unique'), name: '\u2726 ' + def.name }; }
 function buildSetItem(sid, slot, ilvl) {
   const sd = SET_DEFS[sid]; const base = (slot === 'weapon') ? pickWeaponBase() : choice(BASE_NAMES[slot]);

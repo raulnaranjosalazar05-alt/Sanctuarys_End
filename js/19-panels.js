@@ -211,7 +211,7 @@ function charSheetHTML() {
   util += row('Move Speed', '+' + pct((e.movespeed || 0) * 100));
   util += row('Mana Leech', pct((e.manaleech || 0) * 100));
   util += row('Mana Regen', ((player.mpRegen || 0) * 1000).toFixed(1) + '/s');
-  util += row('Magic Find', '+' + pct((lootLuck || 0) * 100));
+  util += row('Magic Find', '+' + pct(((zoneLuck || 0) + (lootLuck || 0)) * 100));
   util += row('Gold Find', '+' + pct((player.goldFind || 0) * 100));
   util += row('STR', player.str) + row('DEX', player.dex) + row('VIT', player.vit) + row('ENG', player.eng);
   return `<div class="statname"><b>${escapeHtml(character.name)}</b> · Level ${player.level}</div>` + sec('Offense', off) + sec('Defense', def) + sec('Resistances', res) + sec('Utility', util);

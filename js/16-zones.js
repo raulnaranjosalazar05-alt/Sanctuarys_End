@@ -28,10 +28,10 @@ function setScale() {
   const dm = DIFF[difficulty] || DIFF.Normal; if (zone === 'dungeon') {
     const D = DSCALE;
     curScale = { hp: (1 + depth * D.hpLin + Math.pow(depth * D.hpQuad, 2)) * dm.hp, dmg: (1 + depth * D.dmgLin + Math.pow(depth * D.dmgQuad, 2)) * dm.dmg, xp: (1 + depth * D.xpLin + Math.pow(depth * D.xpQuad, 2)) * dm.xp, ilvl: player.level + depth * D.ilvlPerDepth };
-    lootLuck = Math.min(0.5, depth * 0.02);
+    zoneLuck = Math.min(0.5, depth * 0.02);
   }
-  else if (zone === 'wild') { const lv = (curRegion && curRegion.lvl) || 1; curScale = { hp: (1 + lv * 0.12) * dm.hp, dmg: (1 + lv * 0.09) * dm.dmg, xp: (1 + lv * 0.15) * dm.xp, ilvl: Math.max(player.level, lv) + 2 }; lootLuck = 0; }
-  else { curScale = { hp: dm.hp, dmg: dm.dmg, xp: dm.xp, ilvl: player.level }; lootLuck = 0; }
+  else if (zone === 'wild') { const lv = (curRegion && curRegion.lvl) || 1; curScale = { hp: (1 + lv * 0.12) * dm.hp, dmg: (1 + lv * 0.09) * dm.dmg, xp: (1 + lv * 0.15) * dm.xp, ilvl: Math.max(player.level, lv) + 2 }; zoneLuck = 0; }
+  else { curScale = { hp: dm.hp, dmg: dm.dmg, xp: dm.xp, ilvl: player.level }; zoneLuck = 0; }
 }
 /* Phase 1b perf: pre-warm the freshly-built scene's GPU pipelines behind the loading gate so the first live
    frame doesn't compile-stutter (browser-verified: zone entry froze ~2s as the main thread idle-waited on GPU
