@@ -21,7 +21,7 @@ function loadAbility() {
   loadFiles(sandbox, [RUNES_FILE]);
   return runSnippet(
     sandbox,
-    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
+    ';(globalThis.__ab={defaultLoadout,SAVE,SKILLDEFS,ACTIVE_ORDER,SKILL_RUNES,RUNE_FLAG_INFO,buildSkillTree,resolveSkill,invalidateRunes,canAllocRune,classAbilities,CLASS_ACTIVES,setChar:(c)=>{character=c;invalidateRunes();},setLevel:(n)=>{player.level=n;}});',
   );
 }
 
@@ -144,6 +144,38 @@ test('the Extended (addDuration) rune folds into resolveSkill for util skills', 
   AB.setChar({ skillRunes: { warcry: { warcry_sh2: 1 } } });
   const R = AB.resolveSkill('warcry');
   assert.equal(R.addDuration, 1500, 'Extended rune should add 1500ms of duration');
+});
+
+test('every declared rune flag is obtainable on at least one tree', () => {
+  // RUNE_FLAG_INFO is the full behavior-flag vocabulary; a flag with a handler but no node granting it
+  // is dead content (the v49 state of chillNova/knockback/vampiric/lingering). Assert full coverage.
+  const placed = new Set();
+  for (const id in AB.SKILL_RUNES) {
+    const tree = AB.SKILL_RUNES[id];
+    for (const nid in tree.nodes) for (const f of tree.nodes[nid].flags || []) placed.add(f);
+  }
+  for (const flag in AB.RUNE_FLAG_INFO) {
+    assert.ok(placed.has(flag), `flag "${flag}" is declared but no rune node grants it`);
+  }
+});
+
+test('the side notables (vampiric / knockback / chill-burst) hang off the utility arms and gate correctly', () => {
+  AB.setLevel(99);
+  // fireball is a proj tree → gets _vamp off the Quicken arm; multishot is multiproj → _cnova + _kb.
+  assert.ok(AB.SKILL_RUNES.fireball.nodes.fireball_vamp, 'proj tree has the Vampiric notable');
+  assert.ok(AB.SKILL_RUNES.multishot.nodes.multishot_cnova, 'multiproj tree has the Frost Burst notable');
+  assert.ok(AB.SKILL_RUNES.multishot.nodes.multishot_kb, 'multiproj tree has the Concussive notable');
+  AB.setChar({ abilityPoints: 99, skillRunes: { fireball: {} } });
+  assert.equal(AB.canAllocRune('fireball', 'fireball_vamp'), false, 'side notable needs its arm allocated first');
+  AB.setChar({ abilityPoints: 99, skillRunes: { fireball: { fireball_dmg: 1, fireball_cdr: 1 } } });
+  assert.equal(AB.canAllocRune('fireball', 'fireball_vamp'), true, 'reachable via Empower → Quicken');
+  AB.setChar({ skillRunes: { fireball: { fireball_vamp: 1 } } });
+  const R = AB.resolveSkill('fireball');
+  assert.ok(R.flags.has('vampiric'), 'allocated side notable folds its flag');
+});
+
+test('Ground Slam carries the stun on-hit tag', () => {
+  assert.equal(AB.SKILLDEFS.groundslam.onHit, 'stun', 'groundslam is the player stun source');
 });
 
 test('canAllocRune enforces connectivity, exclusivity, and level gates', () => {

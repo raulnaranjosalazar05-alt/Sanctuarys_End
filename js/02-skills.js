@@ -24,7 +24,7 @@ const SKILLDEFS = {
   piercing: { name: 'Piercing Shot', ico: '➹', type: 'passive', maxRank: 3, req: 5, granted: false, desc: 'Daggers pierce +1 enemy per rank.' },
   deadlyaim: { name: 'Deadly Aim', ico: '👁️', type: 'passive', maxRank: 5, req: 9, granted: false, desc: '+2% crit chance per rank.' },
   // ---- expanded actives (auto-granted by class level) ----
-  groundslam: { name: 'Ground Slam', ico: '🪨', type: 'active', kind: 'groundslam', cost: 14, cd: 1400, maxRank: 5, req: 1, granted: false, desc: 'Smash a cone of ground — damages, knocks back and slows. Rank boosts damage.' },
+  groundslam: { name: 'Ground Slam', ico: '🪨', type: 'active', kind: 'groundslam', onHit: 'stun', cost: 14, cd: 1400, maxRank: 5, req: 1, granted: false, desc: 'Smash a cone of ground — damages, stuns briefly, knocks back and slows. Rank boosts damage.' },
   charge: { name: 'Charge', ico: '🐗', type: 'active', kind: 'charge', cost: 12, cd: 1600, maxRank: 5, req: 1, granted: false, desc: 'Rush toward the cursor, damaging and slowing foes you crash into.' },
   warcry: { name: 'War Cry', ico: '📢', type: 'active', kind: 'warcry', cost: 16, cd: 9000, maxRank: 5, req: 1, granted: false, desc: 'Roar for 8s: more melee damage and less damage taken. Rank boosts the bonus.' },
   arcaneorb: { name: 'Arcane Orb', ico: '🔮', type: 'active', kind: 'arcaneorb', cost: 16, cd: 900, maxRank: 5, req: 1, granted: false, desc: 'A slow, heavy orb that pierces foes. Rank boosts damage.' },
