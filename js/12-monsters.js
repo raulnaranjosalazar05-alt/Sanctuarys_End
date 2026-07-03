@@ -135,7 +135,7 @@ function buildMonsterMesh(t, col, scale) {
 function spawnMonster(t, eliteMods, pos) {
   if (_SPK.on) { _ev(eliteMods ? 'spawnElite' : 'spawnMon'); if (!_SPK.seen.has(t)) { _SPK.seen.add(t); _ev('NEWTYPE:' + t); } }
   const base = MTYPES[t]; let x, z;
-  if (pos) { x = pos.x; z = pos.z; } else { const ang = rand(0, Math.PI * 2), d = rand(40, 70); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); x = p.x; z = p.z; }
+  if (pos) { x = pos.x; z = pos.z; } else { let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null; /* room-aware: spawn in the player's room or a door-neighbor so straight-line chase AI can actually reach them */ if (!p) { const ang = rand(0, Math.PI * 2), d = rand(40, 70); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); } x = p.x; z = p.z; }
   const sc = eliteMods ? base.scale * 1.4 : base.scale;
   const mesh = buildMonsterMesh(t, base.col, sc); mesh.position.set(x, 0, z); scene.add(mesh);
   let hpM = curScale.hp, dmgM = curScale.dmg, xpM = curScale.xp, speedMult = 1, name = base.name;
@@ -159,8 +159,10 @@ function spawnMonster(t, eliteMods, pos) {
   return monsters[monsters.length - 1];
 }
 function spawnPack() {
-  const t = choice(biomePool()); const ang = rand(0, 6.28), d = rand(45, 65);
-  const c = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(c); const cx = c.x, cz = c.z;
+  const t = choice(biomePool());
+  let c = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!c) { const ang = rand(0, 6.28), d = rand(45, 65); c = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(c); }
+  const cx = c.x, cz = c.z;
   const dmf = DIFF[difficulty] || DIFF.Normal; const cnt = Math.max(depth > 3 ? 2 : 1, dmf.eliteAffixes || 1); const p2 = Object.keys(ELITE_MODS); const mods = []; for (let i = 0; i < cnt; i++) mods.push(p2.splice(randi(0, p2.length - 1), 1)[0]);
   spawnMonster(t, mods, { x: cx, z: cz });
   for (let i = 0; i < 3; i++) { const a = rand(0, 6.28); const mp = { x: cx + Math.cos(a) * 5, z: cz + Math.sin(a) * 5 }; clampEntToZone(mp); spawnMonster(t, null, { x: mp.x, z: mp.z }); }
@@ -171,7 +173,8 @@ function spawnPack() {
 const CHAMP_NAMES = ['Gorehowl the Render', 'Vexna, Spite of the Deep', 'Karthok Bonecrown', 'The Sallow Warden', 'Ymira Frostfang', 'Drazzel the Unmaker', 'Old Scorn', 'Maluk, Ash-Touched'];
 function spawnChampion(depth) {
   const t = choice(biomePool()); const mod = choice(Object.keys(ELITE_MODS));
-  const ang = rand(0, 6.28), d = rand(40, 60); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p);
+  let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!p) { const ang = rand(0, 6.28), d = rand(40, 60); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); }
   const m = spawnMonster(t, [mod], { x: p.x, z: p.z }); if (!m) return null;
   m.champion = true; m.hp = m.hpMax = Math.round(m.hpMax * 2); m.dmg = Math.round(m.dmg * 1.25); m.name = choice(CHAMP_NAMES); m.nameCol = 0xffd24d;
   cullLights(); return m;
@@ -179,7 +182,8 @@ function spawnChampion(depth) {
 /* Treasure Goblin: rare, fast, harmless, flees — drops a hoard only if you catch it (escape = nothing).
    Reuses the small 'imp' mesh, gold-tinted; no bespoke model. */
 function spawnGoblin() {
-  const ang = rand(0, 6.28), d = rand(34, 55); const p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p);
+  let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null;
+  if (!p) { const ang = rand(0, 6.28), d = rand(34, 55); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); }
   const m = spawnMonster('imp', null, { x: p.x, z: p.z }); if (!m) return null;
   m.flee = true; m.treasure = true; m.showName = true; m.name = 'Treasure Goblin'; m.nameCol = 0xffd24d;
   m.dmg = 0; m.speed = 0.34; m.ttl = 18000; m.hp = m.hpMax = Math.round(30 + depth * 4); m.xp = Math.round(m.xp * 3);

@@ -28,7 +28,10 @@ function makePropInst(geo, mat, tf, group, opts) { /* tf items: {x,z,ry?,rx?,rz?
 /* Resident biome cache: each dungeon biome is BUILT ONCE into its own sub-group and kept in the scene; re-entry
    toggles .visible + re-scatters the instanced props (no dispose) so GPU pipelines stay warm — re-entry compiles
    in ~6ms vs the ~950ms recompile a teardown+rebuild evicts into. Bounded at the 7 BIOMES. */
-const dungeonBiomeCache = new Map(); // biome.name -> { sub, scatterIMs, fixedColliders, fires }
+const dungeonBiomeCache = new Map(); // biome.name -> { sub, scatterIMs, fixedColliders, fires, fireGroups, wallIM, wallScale, dais, daisS }
+let dungeonLayout = null; // per-floor room graph (genDungeonLayout, 00-core); null on boss/666 arena floors
+/* distance from (x,z) to the nearest wall segment of the layout — used to keep re-scattered props off wall lines */
+function _nearWallLine(lay, x, z, m) { for (const w of lay.walls) { const dx = w.x2 - w.x1, dz = w.z2 - w.z1; const L2 = dx * dx + dz * dz || 1; let t = ((x - w.x1) * dx + (z - w.z1) * dz) / L2; t = clamp(t, 0, 1); if (Math.hypot(x - (w.x1 + dx * t), z - (w.z1 + dz * t)) < m) return true; } return false; }
 const _dM4 = new THREE.Matrix4(), _dQ = new THREE.Quaternion(), _dE = new THREE.Euler(), _dV = new THREE.Vector3(), _dSc = new THREE.Vector3();
 function _imSetTF(im, tf) { for (let i = 0; i < tf.length; i++) { const t = tf[i], s = t.s || 1; _dE.set(t.rx || 0, t.ry || 0, t.rz || 0); _dQ.setFromEuler(_dE); _dV.set(t.x, t.y || 0, t.z); _dSc.set(t.sx || s, t.sy || s, t.sz || s); _dM4.compose(_dV, _dQ, _dSc); im.setMatrixAt(i, _dM4); } im.instanceMatrix.needsUpdate = true; }
 /* Fresh layout on (re-)entry: re-randomize each tagged InstancedMesh's instance positions/rotations within the
@@ -39,35 +42,70 @@ function _imSetTF(im, tf) { for (let i = 0; i < tf.length; i++) { const t = tf[i
 function _rescatterDungeon(c) {
   dungeonColliders.length = 0;
   for (const col of c.fixedColliders) dungeonColliders.push(col);
-  const R = DUNG_HALF - 6;
+  const lay = dungeonLayout; const R = DUNG_HALF - 6;
   for (const im of c.scatterIMs) {
     const tf = [];
-    for (const m of im.userData.scatterMeta) { const ang = rand(0, 6.28), d = rand(8, R); tf.push({ x: Math.cos(ang) * d, z: Math.sin(ang) * d, ry: rand(0, 6), s: m.s, cr: m.cr }); }
+    for (const m of im.userData.scatterMeta) { let x = 0, z = 0; for (let t = 0; t < 4; t++) { const ang = rand(0, 6.28), d = rand(8, R); x = Math.cos(ang) * d; z = Math.sin(ang) * d; if (!lay || !_nearWallLine(lay, x, z, 2.6)) break; } tf.push({ x, z, ry: rand(0, 6), s: m.s, cr: m.cr }); }
     _imSetTF(im, tf);
     for (const t of tf) if (t.cr != null) dungeonColliders.push({ x: t.x, z: t.z, r: t.cr });
+  }
+  /* interior room walls: re-stamp the fixed-capacity per-biome wall IM from the floor's layout. Per-floor cost
+     is matrix writes + im.count — zero geometry/material churn, so GPU pipelines stay warm (the cache contract). */
+  if (c.wallIM) {
+    const tf = [];
+    if (lay) {
+      const ws = c.wallScale;
+      for (const w of lay.walls) {
+        const dx = w.x2 - w.x1, dz = w.z2 - w.z1, len = Math.hypot(dx, dz); if (len < 0.5) continue;
+        const vert = Math.abs(dz) > Math.abs(dx); const ry = vert ? Math.PI / 2 : 0;
+        const pieceW = ws.box ? 3.2 : ws.w * ws.sy;
+        const n = Math.max(1, Math.round(len / pieceW)); const step = len / n;
+        for (let k = 0; k < n && tf.length < c.wallIM.instanceMatrix.count - 1; k++) {
+          const t = (k + 0.5) / n; const x = w.x1 + dx * t, z = w.z1 + dz * t;
+          if (ws.box) tf.push({ x, z, y: 2.5, ry, sx: vert ? 1.4 : step, sy: 5, sz: vert ? step : 1.4 });
+          else tf.push({ x, z, ry, sx: step / ws.w, sy: ws.sy, sz: ws.sy });
+        }
+        const cn = Math.max(1, Math.round(len / 2.2)); // circle-collider chain — the same mechanism pillars use
+        for (let k = 0; k <= cn; k++) { const t = k / cn; dungeonColliders.push({ x: w.x1 + dx * t, z: w.z1 + dz * t, r: 1.6 }); }
+      }
+    }
+    _imSetTF(c.wallIM, tf); c.wallIM.count = tf.length;
+  }
+  if (c.dais) { const p = lay ? lay.portal : { x: 0, z: -50 }; _dE.set(0, 0, 0); _dQ.setFromEuler(_dE); _dV.set(p.x, 0.05, p.z); _dSc.set(c.daisS.sx, 1, c.daisS.sz); _dM4.compose(_dV, _dQ, _dSc); c.dais.setMatrixAt(0, _dM4); c.dais.instanceMatrix.needsUpdate = true; }
+  if (c.fireGroups) { /* movable campfires: reposition the wrapper groups room-safely (light count constant → no recompile) */
+    for (let i = 0; i < c.fireGroups.length; i++) {
+      let x, z;
+      if (lay) { const p = layoutSpawnPoint(lay, 0, 0); x = p.x; z = p.z; } else { const ang = rand(0, 6.28), d = rand(15, R - 10); x = Math.cos(ang) * d; z = Math.sin(ang) * d; }
+      c.fireGroups[i].position.set(x, 0, z); const f = c.fires[i]; if (f) { f.x = x; f.z = z; }
+      dungeonColliders.push({ x, z, r: 0.9 });
+    }
   }
 }
 function _buildDungeonBiome(depth, th) {
   const sub = new THREE.Group(); sub.name = 'dbiome:' + th.name; dungeonGroup.add(sub);
   _lightBucket = 'dungeon'; /* per-biome lights live under this sub; cullLights' parent-visibility skip excludes inactive biomes, so the visible point-light count stays constant (no biome-switch recompile) */
-  const fires = [], fixedColliders = [], scatterIMs = [];
-  _fillDungeonBiome(sub, depth, th, fires, fixedColliders, scatterIMs);
+  const fires = [], fixedColliders = [], scatterIMs = [], extras = {};
+  _fillDungeonBiome(sub, depth, th, fires, fixedColliders, scatterIMs, extras);
   _lightBucket = 'static';
-  const cache = { sub, scatterIMs, fixedColliders, fires };
+  const cache = { sub, scatterIMs, fixedColliders, fires, fireGroups: extras.fireGroups || null, wallIM: extras.wallIM || null, wallScale: extras.wallScale || null, dais: extras.dais || null, daisS: extras.daisS || null };
   dungeonBiomeCache.set(th.name, cache);
   dungeonFires = fires;
-  _rescatterDungeon(cache); /* place scatter + build dungeonColliders (fixed + fresh scatter) */
+  _rescatterDungeon(cache); /* place scatter + walls + fires + build dungeonColliders (fixed + fresh scatter) */
 }
 function buildDungeon(depth) {
   const th = curTheme = pickBiome(depth);
+  dungeonLayout = (depth % 5 === 0 || depth === 666) ? null : genDungeonLayout(DUNG_HALF, depth); /* boss floors stay open arenas */
   for (const c of dungeonBiomeCache.values()) c.sub.visible = false;
   const cached = dungeonBiomeCache.get(th.name);
   if (cached) { cached.sub.visible = true; dungeonFires = cached.fires; _rescatterDungeon(cached); }
   else _buildDungeonBiome(depth, th);
   if (!d_deeperPortal) { _lightBucket = 'static'; d_deeperPortal = makePortal(0, -50, 0xc04aff); dungeonGroup.add(d_deeperPortal.group); } /* singleton biome-agnostic deeper-descent portal, created once, kept resident */
+  const pp = dungeonLayout ? dungeonLayout.portal : { x: 0, z: -50 }; /* the way down sits in the BFS-farthest room — the floor has a direction */
+  d_deeperPortal.group.position.set(pp.x, 0, pp.z); d_deeperPortal.x = pp.x; d_deeperPortal.z = pp.z;
 }
 /* `dungeonGroup` here is the per-biome sub-group (param shadows the module group): every add below targets it. */
-function _fillDungeonBiome(dungeonGroup, depth, th, fires, fixedColliders, scatterIMs) {
+function _fillDungeonBiome(dungeonGroup, depth, th, fires, fixedColliders, scatterIMs, extras) {
+  extras = extras || {};
   const R = DUNG_HALF - 6; /* interior scatter stays inside the rectangular hall (kit walls sit at ±(DUNG_HALF+2)) */
   const addScatter = (geo, mat, metas, opts) => { const im = new THREE.InstancedMesh(geo, mat, metas.length); im.frustumCulled = false; im.castShadow = !!(opts && opts.cast); im.receiveShadow = !!(opts && opts.recv); im.userData.scatterMeta = metas; dungeonGroup.add(im); scatterIMs.push(im); return im; }; /* tagged scatter: positioned + re-randomized by _rescatterDungeon */
   const useProps = PROPS_READY && PROP_PROTO['pillar'] && PROP_PROTO['rubble_large'];
@@ -88,7 +126,10 @@ function _fillDungeonBiome(dungeonGroup, depth, th, fires, fixedColliders, scatt
     for (let i = 0; i < 25; i++) { const x = rand(-R, R), z = rand(-R, R), s = rand(1, 2.4); E.set(rand(0, 6), rand(0, 6), rand(0, 6)); Q.setFromEuler(E); V.set(x, s * 0.4, z); Sc.set(s, s, s); M.compose(V, Q, Sc); rim.setMatrixAt(i, M); fixedColliders.push({ x, z, r: s * 0.9 }); }
     rim.instanceMatrix.needsUpdate = true; dungeonGroup.add(rim);
   }
-  for (let i = 0; i < 6; i++) { const ang = rand(0, 6.28), d = rand(15, R - 10); makeFire(Math.cos(ang) * d, Math.sin(ang) * d, dungeonGroup, fires, fixedColliders, th.fire); }
+  /* campfires live in per-fire wrapper groups so _rescatterDungeon can move them to room-safe spots each floor
+     (PointLight count stays constant → no recompile); their colliders are pushed per-floor, not into fixed */
+  extras.fireGroups = [];
+  for (let i = 0; i < 6; i++) { const fg = new THREE.Group(); dungeonGroup.add(fg); makeFire(0, 0, fg, fires, null, th.fire); extras.fireGroups.push(fg); }
   // themed decorations
   for (let i = 0; i < 22; i++) {
     const ang = rand(0, 6.28), d = rand(8, R - 6), x = Math.cos(ang) * d, z = Math.sin(ang) * d; const lit = (i % 3 === 0);
@@ -148,11 +189,22 @@ function _fillDungeonBiome(dungeonGroup, depth, th, fires, fixedColliders, scatt
           for (let j = 0; j < ti.length; j += 2) { const lt = regLight(new THREE.PointLight(th.fire, 1.2 * Math.PI, 22, 2)); lt.position.set(ti[j].x, 3.0, ti[j].z); dungeonGroup.add(lt); }
         }
       }
-      // central floor dais under the deeper portal (accent tile, biome-tinted)
-      if (PROP_PROTO['floor_tile_large_rocks']) { const fp = PROP_PROTO['floor_tile_large_rocks'], fsc = fp.size.x ? 5.2 / fp.size.x : 1; makePropInst(fp.geo, tintPropMat(fp.mat, th.ground), [{ x: 0, z: -50, sx: fsc, sy: 1, sz: fsc, y: 0.05 }], dungeonGroup, { recv: true }); }
+      // floor dais under the deeper portal (accent tile, biome-tinted) — re-positioned per floor by _rescatterDungeon
+      if (PROP_PROTO['floor_tile_large_rocks']) { const fp = PROP_PROTO['floor_tile_large_rocks'], fsc = fp.size.x ? 5.2 / fp.size.x : 1; extras.dais = makePropInst(fp.geo, tintPropMat(fp.mat, th.ground), [{ x: 0, z: -50, sx: fsc, sy: 1, sz: fsc, y: 0.05 }], dungeonGroup, { recv: true }); extras.daisS = { sx: fsc, sz: fsc }; }
     }
   }
-  try { mergeStaticScenery(dungeonGroup, new Set(fires.map(f => f.flame))); } catch (e) { console.warn('dungeon scenery merge failed; using unmerged:', e && e.message); } /* collapse static deco draws; skip animated fire flames. InstancedMesh scatter is skipped by merge, so it stays re-randomizable. */
+  { /* interior room walls: ONE fixed-capacity InstancedMesh per biome, built here and re-stamped per floor by
+       _rescatterDungeon (matrix writes + im.count only — the warm-pipeline contract). Kit biomes reuse the wall
+       proto + the SAME tinted material as the perimeter (already warmed); the fallback is a box in the fallback
+       pillar style. Capacity 380 covers the worst-case layout (~40 walled borders × ~9 pieces). */
+    const wp = useProps && PROP_PROTO['wall'] ? PROP_PROTO['wall'] : null;
+    const WALL_H_IN = 5;
+    if (wp) { const sy = WALL_H_IN / wp.base; extras.wallIM = new THREE.InstancedMesh(wp.geo, tintPropMat(wp.mat, th.pillar), 380); extras.wallScale = { w: wp.size.x, sy }; }
+    else { extras.wallIM = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshPhongMaterial({ specular: 0x000000, color: th.pillar, flatShading: true, map: texStone(2, 2) }), 380); extras.wallScale = { box: true }; }
+    extras.wallIM.frustumCulled = false; extras.wallIM.castShadow = true; extras.wallIM.receiveShadow = true; extras.wallIM.count = 0; dungeonGroup.add(extras.wallIM);
+  }
+  { const _fx = new Set(fires.map(f => f.flame)); if (extras.fireGroups) for (const fg of extras.fireGroups) fg.traverse(o => { if (o.isMesh) _fx.add(o); }); /* movable fires must not be baked into the static merge */
+    try { mergeStaticScenery(dungeonGroup, _fx); } catch (e) { console.warn('dungeon scenery merge failed; using unmerged:', e && e.message); } } /* collapse static deco draws; skip animated fire flames. InstancedMesh scatter is skipped by merge, so it stays re-randomizable. */
 }
 
 /* ---- hero ---- */
