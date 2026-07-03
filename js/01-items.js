@@ -1,5 +1,5 @@
 /* ================= ITEMS ================= */
-const SLOTS = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
+const SLOTS = ['weapon', 'offhand', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
 
 /* ---- floor bounties: optional per-floor goal that pays a bonus (soft gate; portal stays open) ----
    Pure (no THREE/DOM) so tests/objectives.test.js can load them from the browser-free prefix. */
@@ -15,8 +15,8 @@ function bountyProgress(obj, kind) {
   if (obj.kind === 'champion' && kind === 'champion') { obj.done = true; return true; }
   return false;
 }
-const SLOT_ICON = { weapon: '⚔️', helm: '🪖', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿' };
-const BASE_NAMES = { weapon: ['Sword', 'Axe', 'Mace', 'Dagger', 'Blade', 'War Hammer', 'Cleaver', 'Scimitar', 'Flail', 'Glaive'], helm: ['Cap', 'Helm', 'Hood', 'Crown', 'Visor', 'Barbute', 'Sallet'], armor: ['Tunic', 'Mail', 'Plate', 'Robe', 'Cuirass', 'Brigandine', 'Hauberk'], gloves: ['Gloves', 'Gauntlets', 'Grips', 'Vambraces'], boots: ['Boots', 'Greaves', 'Sabatons', 'Treads'], ring: ['Ring', 'Band', 'Signet', 'Loop'], amulet: ['Amulet', 'Pendant', 'Talisman', 'Charm'] };
+const SLOT_ICON = { weapon: '⚔️', offhand: '🔰', helm: '🪖', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿' };
+const BASE_NAMES = { weapon: ['Sword', 'Axe', 'Mace', 'Dagger', 'Blade', 'War Hammer', 'Cleaver', 'Scimitar', 'Flail', 'Glaive'], offhand: ['Buckler', 'Kite Shield', 'Tome', 'Grimoire', 'Quiver', 'Bolt Case'], helm: ['Cap', 'Helm', 'Hood', 'Crown', 'Visor', 'Barbute', 'Sallet'], armor: ['Tunic', 'Mail', 'Plate', 'Robe', 'Cuirass', 'Brigandine', 'Hauberk'], gloves: ['Gloves', 'Gauntlets', 'Grips', 'Vambraces'], boots: ['Boots', 'Greaves', 'Sabatons', 'Treads'], ring: ['Ring', 'Band', 'Signet', 'Loop'], amulet: ['Amulet', 'Pendant', 'Talisman', 'Charm'] };
 /* Class-flavored weapon base names (cosmetic only — base does not affect stats; baseStat comes from ilvl/rarity).
    Lets the visible weapon model be loot-driven for every class: mages roll caster bases, rogues ranged, warriors melee. */
 const WEAPON_BASES = {
@@ -26,6 +26,20 @@ const WEAPON_BASES = {
 };
 const CLASS_WEAPON_FAMILY = { warrior: 'melee', mage: 'caster', rogue: 'ranged' };
 function pickWeaponBase() { return choice(WEAPON_BASES[CLASS_WEAPON_FAMILY[(typeof character !== 'undefined' && character && character.class)] || 'melee']); }
+/* ---- offhands: class-flavored kinds. Shields roll armor + Block %, tomes/quivers roll a guaranteed
+   kit affix instead of a base stat. Kind stored on the item (it.ohKind) so folding never re-derives it. */
+const OFFHAND_KINDS = {
+  melee: { kind: 'shield', names: ['Buckler', 'Kite Shield', 'Tower Shield', 'Aegis', 'Bulwark'] },
+  caster: { kind: 'tome', names: ['Tome', 'Grimoire', 'Codex', 'Spellbook'] },
+  ranged: { kind: 'quiver', names: ['Quiver', 'Bolt Case', 'Fletch Kit', 'Arrow Bag'] },
+};
+function offhandSpec() { return OFFHAND_KINDS[CLASS_WEAPON_FAMILY[(typeof character !== 'undefined' && character && character.class)] || 'melee']; }
+/* Weapon subtype identity, derived at READ time from it.base so items saved before subtypes existed need no new
+   field: an attack-interval multiplier (<1 = faster, >1 = slower-but-heavier). 2H is a stored roll flag (it.h2),
+   never derived from the name — an old saved "War Hammer" stays one-handed. */
+const WEAPON_SPEED = { Dagger: 0.85, Wand: 0.85, Shortbow: 0.9, Blade: 0.92, Scimitar: 0.92, Recurve: 0.95, Rod: 0.95, Branch: 0.98, Sword: 1, Bow: 1, 'Hunting Bow': 1, Scepter: 1, Axe: 1.02, Flail: 1.05, Spire: 1.05, Longbow: 1.06, Mace: 1.08, Staff: 1.08, Cleaver: 1.1, Crossbow: 1.1, Glaive: 1.15, 'War Hammer': 1.18 };
+/** @param {{base?:string}|null|undefined} it @returns {number} */
+const weaponSpeed = it => (it && it.base && WEAPON_SPEED[it.base]) || 1;
 const PREFIX = ['Sturdy', 'Cruel', 'Vicious', 'Glowing', 'Ancient', 'Savage', 'Blessed', 'Howling', 'Grim', 'Radiant'];
 const SUFFIX = ['of the Bear', 'of Flames', 'of Vigor', 'of the Fox', 'of Power', 'of the Owl', 'of Warding', 'of Fury', 'of the Wolf', 'of Doom'];
 const AFFIXES = {
@@ -61,7 +75,13 @@ const RTIER = { common: 1, magic: 2, rare: 3, set: 4, unique: 5 };
 /* rarity now scales raw power: multiplier on base stat AND each rolled affix value (uniques keep hand-tuned values) */
 const RARITY_MULT = { common: 1.0, magic: 1.18, rare: 1.4, set: 1.55, unique: 1.7 };
 const RARITY_NAME = { common: 'Common', magic: 'Magic', rare: 'Rare', set: 'Set', unique: 'Unique' };
-function baseStatRoll(slot, ilvl, rarity) { const m = RARITY_MULT[rarity] || 1; if (slot === 'weapon') return Math.round((4 + ilvl * 1.3 + rand(0, 4)) * m); if (slot !== 'ring' && slot !== 'amulet') return Math.round((2 + ilvl * 0.9 + rand(0, 3)) * m); return 0; }
+function baseStatRoll(slot, ilvl, rarity) { const m = RARITY_MULT[rarity] || 1; if (slot === 'weapon') return Math.round((4 + ilvl * 1.3 + rand(0, 4)) * m); if (slot !== 'ring' && slot !== 'amulet' && slot !== 'offhand') return Math.round((2 + ilvl * 0.9 + rand(0, 3)) * m); return 0; } /* offhand base stat is kind-dependent — rolled by applyOffhandKind, not here */
+/* Stamp an offhand's kind identity onto a freshly rolled item: shields get an armor base + Block %, tomes/quivers a guaranteed kit affix. */
+function applyOffhandKind(item, spec, ilvl, rarity) {
+  item.ohKind = spec.kind;
+  if (spec.kind === 'shield') { item.baseStat = Math.round((2 + ilvl * 0.9 + rand(0, 3)) * (RARITY_MULT[rarity] || 1)); item.block = randi(6, 10 + Math.round(ilvl * 0.25)); }
+  else { const gk = spec.kind === 'tome' ? (Math.random() < 0.5 ? 'skilldmg' : 'mp') : (Math.random() < 0.5 ? 'ias' : 'dmg'); item.affixes[gk] = affixRoll(gk, ilvl, rarity); }
+}
 function affixRoll(k, ilvl, rarity) { return Math.max(1, Math.round(AFFIXES[k].roll(ilvl) * (RARITY_MULT[rarity] || 1))); }
 const UNIQUE_DEFS = [
   { slot: 'weapon', name: 'Bloodfang', base: 14, affixes: { dmg: 12, crit: 8 }, effect: 'lifesteal', effVal: 0.12, desc: 'Heals 12% of melee/spell damage dealt.' },
@@ -110,7 +130,7 @@ const GEM_TIER = ['Chipped', 'Flawed', '', 'Flawless', 'Perfect']; // q index 0.
 const gemCat = s => s === 'weapon' ? 'weapon' : (s === 'ring' || s === 'amulet') ? 'jewelry' : 'gear';
 const gemName = g => (GEM_TIER[g.q] ? GEM_TIER[g.q] + ' ' : '') + (GEMS[g.t] ? GEMS[g.t].name : g.t);
 const gemEff = (slot, g) => GEMS[g.t] && GEMS[g.t][gemCat(slot)]; // {key,vals} this gem grants in this slot
-const SOCKET_MAX = { weapon: 3, armor: 3, helm: 2, gloves: 2, boots: 2, ring: 1, amulet: 1 };
+const SOCKET_MAX = { weapon: 3, offhand: 2, armor: 3, helm: 2, gloves: 2, boots: 2, ring: 1, amulet: 1 };
 function rollSockets(slot, rarity) {
   const max = SOCKET_MAX[slot] || 0; if (!max) return [];
   const p = ({ common: 0.10, magic: 0.22, rare: 0.38, set: 0.30, unique: 0.30 })[rarity] || 0;
@@ -142,8 +162,11 @@ function rollItem(ilvl, forceSlot, quality) {
   const slot = forceSlot || choice(SLOTS); let rarity = luckyRarity(depthQuality() + (quality || 0));
   if (rarity === 'unique') { const opts = UNIQUE_DEFS.filter(u => u.slot === slot); if (opts.length) return buildUnique(choice(opts), ilvl); rarity = 'rare'; }
   if (rarity === 'set') { const setOpts = []; for (const sid in SET_DEFS) { if (SET_DEFS[sid].pieces.includes(slot)) setOpts.push(sid); } if (setOpts.length) return buildSetItem(choice(setOpts), slot, ilvl); rarity = 'rare'; }
-  const base = (slot === 'weapon') ? pickWeaponBase() : choice(BASE_NAMES[slot]);
+  const spec = slot === 'offhand' ? offhandSpec() : null;
+  const base = (slot === 'weapon') ? pickWeaponBase() : spec ? choice(spec.names) : choice(BASE_NAMES[slot]);
   const item = { id: _itemId++, slot, rarity, ilvl, base, affixes: {}, baseStat: baseStatRoll(slot, ilvl, rarity), upgrade: 0, sockets: rollSockets(slot, rarity) };
+  if (spec) applyOffhandKind(item, spec, ilvl, rarity);
+  else if (slot === 'weapon' && !WEAPON_BASES.caster.includes(base) && Math.random() < 0.4) { item.h2 = true; item.baseStat = Math.round(item.baseStat * 1.4); } // two-handed roll: locks the offhand, hits ~40% harder
   const [lo, hi] = RARITY_AFFIX[rarity]; const count = randi(lo, hi); const pool = [...AFFIX_KEYS];
   for (let i = 0; i < count; i++) { if (!pool.length) break; const k = pool.splice(randi(0, pool.length - 1), 1)[0]; item.affixes[k] = affixRoll(k, ilvl, rarity); }
   let name = base;
@@ -159,7 +182,7 @@ const upFactor = it => 1 + ((it && it.upgrade) || 0) * 0.08;
 /** @param {Item} it @returns {number} */
 const upgradeMax = it => UPGRADE_CAP[it.rarity] || 5;
 /** @param {*} it @returns {number} */
-function itemScore(it) { if (!it) return 0; let s = it.baseStat * (it.slot === 'weapon' ? 3 : 2); const W = { dmg: 3, hp: 1, crit: 5, ias: 4, ms: 3, leech: 6, allstats: 5, thorns: 1, fireRes: 2, coldRes: 2, poisonRes: 2, lightRes: 2, allRes: 4, critDmg: 5, manaLeech: 4, leechAll: 7, burnOnHit: 5, bleedOnHit: 5, skilldmg: 6, activeskill: 6, skillranks: 25, fireDmg: 5, coldDmg: 5, lightDmg: 5, poisonDmg: 5, hpregen: 4, mpregen: 3, mf: 3, gf: 2, dodge: 5, flatDR: 6, cdr: 6, lifeOnHit: 4 }; for (const k in it.affixes) s += it.affixes[k] * (W[k] || 2); if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) s += e.vals[g.q] * (W[e.key] || 2); } else s += 3; } if (it.effect) s += 40; if (it.set) s += 15; return Math.round(s * upFactor(it)); }
+function itemScore(it) { if (!it) return 0; let s = it.baseStat * (it.slot === 'weapon' ? 3 : 2); const W = { dmg: 3, hp: 1, crit: 5, ias: 4, ms: 3, leech: 6, allstats: 5, thorns: 1, fireRes: 2, coldRes: 2, poisonRes: 2, lightRes: 2, allRes: 4, critDmg: 5, manaLeech: 4, leechAll: 7, burnOnHit: 5, bleedOnHit: 5, skilldmg: 6, activeskill: 6, skillranks: 25, fireDmg: 5, coldDmg: 5, lightDmg: 5, poisonDmg: 5, hpregen: 4, mpregen: 3, mf: 3, gf: 2, dodge: 5, flatDR: 6, cdr: 6, lifeOnHit: 4 }; for (const k in it.affixes) s += it.affixes[k] * (W[k] || 2); if (it.block) s += it.block * 3; if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) s += e.vals[g.q] * (W[e.key] || 2); } else s += 3; } if (it.effect) s += 40; if (it.set) s += 15; return Math.round(s * upFactor(it)); }
 const upgradeCost = it => Math.round(itemScore(it) * (1 + ((it.upgrade) || 0)) * 0.5) + 15;
 const enchantAffixes = it => Object.keys(it.affixes || {}).filter(k => AFFIXES[k]);
 const enchantCost = it => Math.round(itemScore(it) * 0.35) + 25;
@@ -175,7 +198,7 @@ function reforgeName(it) { const base = it.base || it.name; if (it.rarity === 'r
  *  tier first. Preserves id/slot/ilvl/base/upgrade/enchant; rerolls baseStat to match (possibly new) rarity. */
 function reforgeItem(it) {
   if (it.rarity !== 'rare' && Math.random() < REFORGE_RARITY_UP) it.rarity = bumpRarity(it.rarity, 1);
-  it.baseStat = baseStatRoll(it.slot, it.ilvl, it.rarity);
+  if (it.slot !== 'offhand') it.baseStat = baseStatRoll(it.slot, it.ilvl, it.rarity); /* offhand base+block are kind identity (applyOffhandKind); reforge only rerolls its affixes */
   it.affixes = {};
   const [lo, hi] = RARITY_AFFIX[it.rarity]; const cnt = randi(lo, hi); const pool = [...AFFIX_KEYS];
   for (let i = 0; i < cnt; i++) { if (!pool.length) break; const k = pool.splice(randi(0, pool.length - 1), 1)[0]; it.affixes[k] = affixRoll(k, it.ilvl, it.rarity); }

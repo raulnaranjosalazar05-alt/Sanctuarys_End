@@ -159,8 +159,8 @@ function renderSmith() {
     }
   }
 }
-function affixLines(it) { let s = ''; if (it.slot === 'weapon' && it.baseStat) s += `<div class="base">${it.baseStat} Damage</div>`; else if (it.baseStat) s += `<div class="base">${it.baseStat} Armor</div>`; const keys = Object.keys(it.affixes).sort((a, b) => (AFFIX_CAT_ORD[AFFIX_CAT[a]] || 5) - (AFFIX_CAT_ORD[AFFIX_CAT[b]] || 5)); for (const k of keys) s += `<div class="aff aff-${AFFIX_CAT[k] || 'util'}">+${it.affixes[k]} ${AFFIXES[k].label}</div>`; if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) s += `<div class="aff" style="color:#9f6aff">✦ +${it.enchant.val} ${AFFIXES[it.enchant.key].label} (enchant)</div>`; if (it.sockets && it.sockets.length) s += `<div class="aff aff-util">` + it.sockets.map(g => { if (!g) return '◯ (empty)'; const e = gemEff(it.slot, g); return `${GEMS[g.t].ico} +${e.vals[g.q]} ${AFFIXES[e.key].label}`; }).join(' · ') + `</div>`; return s; }
-function statBundle(it) { const b = {}; if (it.baseStat) b[it.slot === 'weapon' ? 'Damage' : 'Armor'] = (b[it.slot === 'weapon' ? 'Damage' : 'Armor'] || 0) + it.baseStat; for (const k in it.affixes) { const l = AFFIXES[k] ? AFFIXES[k].label : k; b[l] = (b[l] || 0) + it.affixes[k]; } if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) { const l = AFFIXES[it.enchant.key].label; b[l] = (b[l] || 0) + (it.enchant.val || 0); } if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) { const l = AFFIXES[e.key].label; b[l] = (b[l] || 0) + e.vals[g.q]; } } } return b; }
+function affixLines(it) { let s = ''; if (it.slot === 'weapon' && it.baseStat) { const ws = weaponSpeed(it); s += `<div class="base">${it.baseStat} Damage${it.h2 ? ' · Two-Handed' : ''}${ws < 1 ? ' · Fast' : ws > 1 ? ' · Slow' : ''}</div>`; } else if (it.baseStat) s += `<div class="base">${it.baseStat} Armor</div>`; if (it.block) s += `<div class="base">${it.block}% Block</div>`; const keys = Object.keys(it.affixes).sort((a, b) => (AFFIX_CAT_ORD[AFFIX_CAT[a]] || 5) - (AFFIX_CAT_ORD[AFFIX_CAT[b]] || 5)); for (const k of keys) s += `<div class="aff aff-${AFFIX_CAT[k] || 'util'}">+${it.affixes[k]} ${AFFIXES[k].label}</div>`; if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) s += `<div class="aff" style="color:#9f6aff">✦ +${it.enchant.val} ${AFFIXES[it.enchant.key].label} (enchant)</div>`; if (it.sockets && it.sockets.length) s += `<div class="aff aff-util">` + it.sockets.map(g => { if (!g) return '◯ (empty)'; const e = gemEff(it.slot, g); return `${GEMS[g.t].ico} +${e.vals[g.q]} ${AFFIXES[e.key].label}`; }).join(' · ') + `</div>`; return s; }
+function statBundle(it) { const b = {}; if (it.baseStat) b[it.slot === 'weapon' ? 'Damage' : 'Armor'] = (b[it.slot === 'weapon' ? 'Damage' : 'Armor'] || 0) + it.baseStat; if (it.block) b.Block = (b.Block || 0) + it.block; for (const k in it.affixes) { const l = AFFIXES[k] ? AFFIXES[k].label : k; b[l] = (b[l] || 0) + it.affixes[k]; } if (it.enchant && it.enchant.key && AFFIXES[it.enchant.key]) { const l = AFFIXES[it.enchant.key].label; b[l] = (b[l] || 0) + (it.enchant.val || 0); } if (it.sockets) for (const g of it.sockets) { if (g) { const e = gemEff(it.slot, g); if (e) { const l = AFFIXES[e.key].label; b[l] = (b[l] || 0) + e.vals[g.q]; } } } return b; }
 function tooltipHTML(it) {
   const eq = character.equipment[it.slot]; let html = `<div class="tname rc-${it.rarity}">${it.name}${it.upgrade ? ' <span style="color:#ffcf6a">+' + it.upgrade + '</span>' : ''}</div><div class="tslot rc-${it.rarity}">${RARITY_NAME[it.rarity] || it.rarity} · ${it.slot} · ilvl ${it.ilvl}${it.upgrade ? ' · +' + Math.round((upFactor(it) - 1) * 100) + '% upgraded' : ''}</div>${affixLines(it)}`;
   if (it.effect) html += `<div style="color:#ffcf6a;margin-top:4px">★ ${it.effectDesc}</div>`;
@@ -202,6 +202,7 @@ function charSheetHTML() {
   def += row('Mana Shield', pct((e.manaShield || 0) * 100));
   def += row('Life Regen', ((player.hpRegen || 0) * 1000).toFixed(1) + '/s');
   def += row('Dodge', pct((e.dodge || 0) * 100));
+  def += row('Block', pct((e.block || 0) * 100));
   def += row('Damage Reduction', pct((e.flatDR || 0) * 100));
   // Resistances — effective = element + all, capped at 75%
   const ar = e.allRes || 0, rres = k => Math.min(75, Math.round((e[k] || 0) + ar));
@@ -248,7 +249,16 @@ function renderInv() {
   }
   goldTxt.textContent = player.gold + ' g'; const _dt = document.getElementById('dustTxt'); if (_dt) _dt.textContent = (character.materials || 0) + ' Dust'; /* currency bar lives at the bottom of the inventory now */
 }
-function equipFromInv(i) { const it = character.inventory[i]; if (!it) return; const prev = character.equipment[it.slot]; character.equipment[it.slot] = it; character.inventory.splice(i, 1); if (prev) character.inventory.push(prev); recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false); }
+function equipFromInv(i) {
+  const it = character.inventory[i]; if (!it) return; const eq = character.equipment;
+  // two-handed exclusion: a 2H weapon and an offhand can never coexist
+  if (it.slot === 'offhand' && eq.weapon && eq.weapon.h2) { showMsg('Your two-handed weapon needs both hands'); return; }
+  if (it.slot === 'weapon' && it.h2 && eq.offhand) {
+    if (character.inventory.length >= character.invMax) { showMsg('Bag full — stow your offhand first'); return; }
+    character.inventory.push(eq.offhand); eq.offhand = null; showMsg('Offhand stowed');
+  }
+  const prev = eq[it.slot]; eq[it.slot] = it; character.inventory.splice(i, 1); if (prev) character.inventory.push(prev); recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false);
+}
 function unequip(s) { const it = character.equipment[s]; if (!it) return; if (character.inventory.length >= character.invMax) { showMsg('Bag full'); return; } character.inventory.push(it); character.equipment[s] = null; recompute(); attachHeroWeapon(); renderInv(); renderOpenShop(); tooltip.style.display = 'none'; saveProgress(false); }
 let ptT = { x: 0, y: 0, s: 1 };
 const PT_NAMES = { str: 'Strength', dex: 'Dexterity', vit: 'Vitality', eng: 'Energy', hp: 'Life', mp: 'Mana', dmg: 'Damage', armor: 'Armor', crit: 'Crit Chance', meleePct: '% Melee Damage', spellPct: '% Spell Damage', armorPct: '% Armor', hpPct: '% Life', allskills: 'to All Skills', pierce: 'Pierce', lifesteal: 'Life Leech', movespeed: '% Move Speed', thorns: 'Thorns' };

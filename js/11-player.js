@@ -31,9 +31,10 @@ const skillCd = (def, id) => def.cd * (1 - (player.cdr || 0)) * (id ? resolveSki
 function recompute() {
   const b = character.base, st = character.stats, eq = character.equipment, sk = character.skills; const cls = CLASSES[character.class] || CLASSES.warrior;
   let dmg = b.dmg, hp = b.hpMax, mp = b.mpMax, armor = 0, crit = 5; const bonus = { dmg: 0, hp: 0, mp: 0, armor: 0, str: 0, vit: 0, eng: 0, crit: 0 };
-  const eff = { lifesteal: 0, manaleech: 0, thorns: 0, allskills: 0, movespeed: 0, critdmg: false, critDmgPct: 0, pierce: 0, deathnova: 0, manaShield: 0, haste: 0, chillaura: false, echo: false, fireRes: 0, frostRes: 0, poisonRes: 0, lightningRes: 0, allRes: 0, burnProc: 0, bleedProc: 0, dodge: 0, flatDR: 0, lifeOnHit: 0 }; const setCount = {};
+  const eff = { lifesteal: 0, manaleech: 0, thorns: 0, allskills: 0, movespeed: 0, critdmg: false, critDmgPct: 0, pierce: 0, deathnova: 0, manaShield: 0, haste: 0, chillaura: false, echo: false, fireRes: 0, frostRes: 0, poisonRes: 0, lightningRes: 0, allRes: 0, burnProc: 0, bleedProc: 0, dodge: 0, flatDR: 0, lifeOnHit: 0, block: 0 }; const setCount = {};
   for (const s of SLOTS) {
     const it = eq[s]; if (!it) continue; const uf = upFactor(it); if (it.slot === 'weapon') bonus.dmg += it.baseStat * uf; else bonus.armor += it.baseStat * uf; for (const k in it.affixes) bonus[k] = (bonus[k] || 0) + it.affixes[k] * uf; gemFold(it, bonus);
+    if (it.block) eff.block = Math.min(0.3, (eff.block || 0) + it.block / 100); // shield Block: chance to take 60% damage, hard-capped 30%
     if (it.enchant && it.enchant.key) bonus[it.enchant.key] = (bonus[it.enchant.key] || 0) + (it.enchant.val || 0) * uf;
     if (it.effect) { if (it.effect === 'critdmg') eff.critdmg = true; else eff[it.effect] = (eff[it.effect] || 0) + it.effVal; }
     if (it.set) { setCount[it.set] = (setCount[it.set] || 0) + 1; }
@@ -58,7 +59,7 @@ function recompute() {
   const ber = sk.berserk > 0 ? sk.berserk + all : 0, arc = sk.arcanemind > 0 ? sk.arcanemind + all : 0, swi = sk.swiftness > 0 ? sk.swiftness + all : 0;
   const iron = sk.ironskin > 0 ? sk.ironskin + all : 0, blood = sk.bloodlust > 0 ? sk.bloodlust + all : 0, pierce = sk.piercing > 0 ? sk.piercing + all : 0, deadly = sk.deadlyaim > 0 ? sk.deadlyaim + all : 0;
   hp = Math.round(hp * Math.max(0.2, 1 + 0.08 * tough + pm.hpPct / 100)); crit += 2 * prec + 2 * deadly; armor = Math.round(armor * (1 + 0.10 * iron + pm.armorPct / 100)); player.mpRegen = 0.004 * (1 + 0.4 * med) + (bonus.mpregen || 0) * 0.001 + eng * 0.0002; player.hpRegen = (bonus.hpregen || 0) * 0.001 + vit * 0.0003;
-  player.attackRate = clamp((420 - dex * 1.2) * (1 - (eff.haste || 0)) * (1 - (bonus.ias || 0) / 100), 150, 420);
+  player.attackRate = clamp((420 - dex * 1.2) * weaponSpeed(eq.weapon) * (1 - (eff.haste || 0)) * (1 - (bonus.ias || 0) / 100), 150, 520); /* weapon subtype speed: daggers swing fast, war hammers slow (they roll bigger baseStat / 2H) */
   eff.movespeed = (eff.movespeed || 0) + 0.04 * swi + (bonus.ms || 0) / 100; eff.lifesteal = (eff.lifesteal || 0) + 0.02 * blood + (bonus.leech || 0) / 100; eff.pierce = (eff.pierce || 0) + pierce; eff.thorns = (eff.thorns || 0) + (bonus.thorns || 0);
   // unit 4 affixes: resists (% taken reduction), leech variants, crit-dmg %, on-hit procs (% chance)
   eff.fireRes = (eff.fireRes || 0) + (bonus.fireRes || 0); eff.frostRes = (eff.frostRes || 0) + (bonus.coldRes || 0); eff.poisonRes = (eff.poisonRes || 0) + (bonus.poisonRes || 0); eff.lightningRes = (eff.lightningRes || 0) + (bonus.lightRes || 0); eff.allRes = (eff.allRes || 0) + (bonus.allRes || 0);
