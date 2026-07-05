@@ -32,7 +32,7 @@ function buildGLBEntity(role, mul) {
   const start = actions.walk || actions.idle; if (start) { start.play(); g.userData.cur = start; } return g;
 }
 function glbPlay(g, key, once) { const acts = g.userData && g.userData.actions; if (!acts) return; const a = acts[key]; if (!a || g.userData.cur === a) return; if (g.userData.cur) g.userData.cur.fadeOut(0.15); a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); a.clampWhenFinished = !!once; a.fadeIn(0.15).play(); g.userData.cur = a; }
-function killMesh(m) { const g = m.mesh, ud = g && g.userData; if (ud && ud.glb && ud.actions && ud.actions.death) { _ev('deathAnim'); glbPlay(g, 'death', true); _dying.push({ g, t: 1400 }); } else removeMob(g); }
+function killMesh(m) { const g = m.mesh, ud = g && g.userData; if (ud && ud.glb && ud.actions && ud.actions.death) { _ev('deathAnim'); glbPlay(g, 'death', true); _dying.push({ g, t: 1400 }); } else poolOrRemove(g); }
 /* KayKit Adventurer/hero meshes bake the FULL weapon set onto handslot.r/.l (1H_Axe, 2H_Staff, Knife, Shield, Quiver…).
    Town NPCs are shopkeepers -> hide every weapon/held-item node by name (tokens word-anchored so 'elbow' != 'Bow'),
    plus hide any leftover children of the handslot bones. Spellbook/Mug kept as merchant flavor (e.g. mage-vendor's book). */

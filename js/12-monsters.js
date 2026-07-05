@@ -110,6 +110,31 @@ const _mGeoC = {}; function _mGeo(k, mk) { return _mGeoC[k] || (_mGeoC[k] = mk()
 const _mMatC = {}; function _mMat(k, mk) { return _mMatC[k] || (_mMatC[k] = mk()); }
 const _mPhong = (col, o) => new THREE.MeshPhongMaterial(Object.assign({ specular: 0x000000, color: col, flatShading: true }, o || {}));
 function removeMob(mesh) { if (mesh && mesh.userData && mesh.userData.noDispose && mesh.userData.bodyMat) mesh.userData.bodyMat.dispose(); removeMesh(mesh); }
+/* Phase 4 (4.4, opt-in settings.monPool, DEFAULT OFF): recycle NON-ELITE monster meshes (Group + per-instance
+   bodyMat, and the GLB SkeletonUtils clone + mixer) instead of orphaning/disposing one per kill. Only non-elite
+   are pooled — they carry no aura/eliteLight children and a constant per-type scale, so the reuse reset surface
+   is small (emissive flash + rewind the mixer to idle/walk). Bounded per type. poolOrRemove() is the removal
+   entry point (kill/flee/death-anim-done); _reusePooledMon() the spawn-side reuse. DEFAULT OFF: reusing a GLB
+   skeleton clone (resetting its animation cleanly) needs visual validation; when off, every kill disposes as
+   before and _reusePooledMon returns null so spawns build fresh. */
+const _monMeshPool = {}, _MON_POOL_MAX = 6;
+function _monPoolOn() { return !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.monPool); }
+if (typeof window !== 'undefined') Object.defineProperty(window, '__monPool', { get: _monPoolOn, set: v => { SAVE._data.settings.monPool = !!v; SAVE.persist(); } });
+function poolOrRemove(mesh) {
+  const ud = mesh && mesh.userData;
+  if (ud && ud.poolType && _monPoolOn()) {
+    const pool = _monMeshPool[ud.poolType] || (_monMeshPool[ud.poolType] = []);
+    if (pool.length < _MON_POOL_MAX) { scene.remove(mesh); mesh.visible = false; pool.push(mesh); return; }
+  }
+  removeMob(mesh);
+}
+function _reusePooledMon(t) {
+  const pool = _monMeshPool[t]; if (!pool || !pool.length) return null;
+  const g = pool.pop(); g.visible = true;
+  if (g.userData.body && g.userData.body.material) g.userData.body.material.emissive.setHex(0); /* clear leftover hit-flash (procedural) */
+  if (g.userData.mixer) { g.userData.mixer.stopAllAction(); const s = g.userData.actions && (g.userData.actions.walk || g.userData.actions.idle); if (s) { s.reset(); s.setLoop(THREE.LoopRepeat, Number.POSITIVE_INFINITY); s.play(); g.userData.cur = s; } } /* rewind the GLB clone out of its death pose */
+  return g;
+}
 function buildMonsterMesh(t, col, scale) {
   if (GLB_PROTO[t]) { const _ge = buildGLBEntity(t, scale / ((MTYPES[t] && MTYPES[t].scale) || 1)); if (_ge) return _ge; } const g = new THREE.Group();
   const bodyMat = _mPhong(col, { map: texSkin(1, 1) });                                       // per-instance (isolated flash)
@@ -188,7 +213,11 @@ function spawnMonster(t, eliteMods, pos) {
   if (pos) { x = pos.x; z = pos.z; } else { let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null; /* room-aware: spawn in the player's room or a door-neighbor so straight-line chase AI can actually reach them */ if (!p) { const ang = rand(0, Math.PI * 2), d = rand(40, 70); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); } x = p.x; z = p.z; }
   const sc = eliteMods ? base.scale * 1.4 : base.scale;
   if (typeof ensureRole === 'function' && SAVE._data.settings.lazyRoster && !GLB_PROTO[t]) ensureRole(t); /* Phase 4 (4.1): kick a lazy GLB load on first spawn of this type; buildMonsterMesh uses the procedural fallback until it arrives */
-  const mesh = buildMonsterMesh(t, base.col, sc); mesh.position.set(x, 0, z); scene.add(mesh);
+  const _pool = !eliteMods && _monPoolOn(); /* Phase 4 (4.4): reuse a pooled non-elite mesh when available */
+  let mesh = _pool ? _reusePooledMon(t) : null;
+  if (!mesh) mesh = buildMonsterMesh(t, base.col, sc);
+  if (_pool) mesh.userData.poolType = t;
+  mesh.position.set(x, 0, z); scene.add(mesh);
   let hpM = curScale.hp, dmgM = curScale.dmg, xpM = curScale.xp, speedMult = 1, name = base.name;
   // clone the archetype's resist map so per-instance depth scaling never mutates MTYPES (shared-ref trap)
   let resist = base.resist ? (typeof base.resist === 'string' ? base.resist : { ...base.resist }) : null;

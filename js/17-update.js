@@ -25,7 +25,7 @@ function update(dt) {
 
   if (isCombat()) for (const m of monsters) {
     if (m.hp <= 0) continue; if (m.flash > 0) m.flash -= fr; tickStatuses(m, dt, false); if (m.hp <= 0) continue; if (player.effects.chillaura && Math.hypot(m.x - player.x, m.z - player.z) < 14 && m.slow < 12) m.slow = 12; const sp = m.speed * (m.speedMult || 1) * Math.min(m.slow > 0 ? 0.45 : 1, m.chilled ? 0.5 : 1) * 60 * dt / 1000; if (m.slow > 0) m.slow -= fr; const d = Math.hypot(m.x - player.x, m.z - player.z);
-    if (m.flee) { m.ttl -= dt; if (m.ttl <= 0) { removeMob(m.mesh); m.dead = true; if (target === m) target = null; showMsg('The goblin escaped!'); continue; } } // escape: clean vanish (no death anim), drops NOTHING (must not route through killMonster); array shrink deferred to _compact below
+    if (m.flee) { m.ttl -= dt; if (m.ttl <= 0) { poolOrRemove(m.mesh); m.dead = true; if (target === m) target = null; showMsg('The goblin escaped!'); continue; } } // escape: clean vanish (no death anim), drops NOTHING (must not route through killMonster); array shrink deferred to _compact below
     if (!m.stunned) {
       if (m.elite) { for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onAI) md.onAI(m, d, fr); } } // elite affix behaviors are table hooks, not name checks
       if (m.onAI && !m.flee && !m.boss) m.onAI(m, d, fr); // per-type signature move (brute charge, hound leap, shaman totem, wraith blink, totem pulse)
@@ -57,7 +57,7 @@ function update(dt) {
     else if (e.mesh.material) { e.mesh.material.opacity = e.life / 14; }
   }
   _compact(fx, _deadLife0, _killMesh);
-  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
+  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); poolOrRemove(d.g); _dying.splice(i, 1); } }
 
   for (const l of loots) {
     l.t += dt * 0.005; l.icon.position.y = 1 + Math.sin(l.t) * 0.25; l.icon.rotation.y += 0.04; if (l.ring) { l.ring.rotation.z += 0.02; const ps = 1 + Math.sin(l.t * 1.4) * 0.12; l.ring.scale.set(ps, ps, ps); } if (l.beam && l.tier >= 4) l.beam.material.opacity = 0.4 + Math.sin(l.t * 2) * 0.12; const _lpdx = l.x - player.x, _lpdz = l.z - player.z, _lpr = player.r + 1.4; if (_lpdx * _lpdx + _lpdz * _lpdz < _lpr * _lpr) {
