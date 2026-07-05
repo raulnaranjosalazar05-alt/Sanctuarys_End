@@ -34,7 +34,8 @@ document.getElementById('setBtn').onclick = openSettings;
 document.getElementById('menuSettings').onclick = openSettings;
 document.getElementById('settingsClose').onclick = closeSettings;
 document.getElementById('setDone').onclick = closeSettings;
-document.getElementById('setVol').oninput = e => { SAVE._data.settings.volume = +e.target.value; applySettings(); SAVE.persist(); };
+document.getElementById('setVol').oninput = e => { SAVE._data.settings.volume = +e.target.value; applySettings(); };
+document.getElementById('setVol').onchange = () => SAVE.persist();
 function bindToggle(id, k, after) { document.getElementById(id).onclick = () => { const s = SAVE._data.settings; s[k] = !s[k]; SAVE.persist(); renderSettings(); if (after) after(s); }; }
 bindToggle('setMusic', 'music', s => { if (s.music && !s.muted) MUSIC.start(); else MUSIC.stop(); });
 bindToggle('setSfx', 'sfx'); bindToggle('setShake', 'shake'); bindToggle('setDmg', 'dmgnum');
@@ -46,9 +47,14 @@ bindGfxToggle('setReflect', 'reflections', () => applyReflections());
 bindGfxToggle('setSsao', 'ssao', () => applySSAO());
 bindGfxToggle('setColorGrade', 'colorgrade', () => applyGrade());
 bindGfxToggle('setVfx', 'vfx');
-document.getElementById('setRes').oninput = e => { SAVE._data.settings.resScale = +e.target.value; SAVE._data.settings.quality = 'custom'; document.getElementById('setResVal').textContent = (+e.target.value) + '%'; SAVE.persist(); applyGraphics(); if (typeof sizeComposer === 'function') sizeComposer(); };
-document.getElementById('setBloom').oninput = e => { SAVE._data.settings.bloom = (+e.target.value) / 100; SAVE._data.settings.quality = 'custom'; document.getElementById('setBloomVal').textContent = ((+e.target.value) / 100).toFixed(2); SAVE.persist(); applyPostFX(); };
-document.getElementById('setExpo').oninput = e => { SAVE._data.settings.exposure = (+e.target.value) / 100; document.getElementById('setExpoVal').textContent = ((+e.target.value) / 100).toFixed(2); SAVE.persist(); applyPostFX(); };
+/* Phase 2 perf: dragging these sliders fired the expensive commit on every tick (framebuffer realloc / full-scene material recompile).
+   oninput now does only the cheap live preview; onchange (fires once on release) does the expensive part. */
+document.getElementById('setRes').oninput = e => { document.getElementById('setResVal').textContent = (+e.target.value) + '%'; }; /* resolution has no cheap live preview - it's a framebuffer realloc, so just update the label while dragging */
+document.getElementById('setRes').onchange = e => { SAVE._data.settings.resScale = +e.target.value; SAVE._data.settings.quality = 'custom'; SAVE.persist(); applyGraphics(); if (typeof sizeComposer === 'function') sizeComposer(); };
+document.getElementById('setBloom').oninput = e => { SAVE._data.settings.bloom = (+e.target.value) / 100; document.getElementById('setBloomVal').textContent = ((+e.target.value) / 100).toFixed(2); applyPostFXLive(); };
+document.getElementById('setBloom').onchange = () => { SAVE._data.settings.quality = 'custom'; SAVE.persist(); };
+document.getElementById('setExpo').oninput = e => { SAVE._data.settings.exposure = (+e.target.value) / 100; document.getElementById('setExpoVal').textContent = ((+e.target.value) / 100).toFixed(2); applyPostFXLive(); };
+document.getElementById('setExpo').onchange = () => SAVE.persist();
 /* ---------- settings tabs + controls (rebinding) ---------- */
 function setSettingsTab(name) { document.querySelectorAll('#setTabs .tab').forEach(t => t.classList.toggle('on', t.dataset.stab === name)); document.querySelectorAll('#settingsModal .setPane').forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none'); if (name === 'controls') renderControls(); if (name === 'loot') renderLootFilter(); if (name === 'saves') renderSavesIO(); }
 /* ---------- save export / import ---------- */

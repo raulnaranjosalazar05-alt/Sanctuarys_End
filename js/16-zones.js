@@ -106,7 +106,7 @@ function enterTown(area) {
 }
 function enterWild(regionId, spawn) {
   curArea = AREAS.find(a => a.id === 'wilds'); const r = (regionId && wildById(regionId)) || curRegion || REGIONS[0];
-  curRegion = r; zone = 'wild'; depth = 0; clearField(); buildWild(r);
+  curRegion = r; zone = 'wild'; depth = 0; clearField(); invalidateWildInter(); buildWild(r);
   player.x = (spawn && spawn.x != null) ? spawn.x : WILD_SPAWN.x; player.z = (spawn && spawn.z != null) ? spawn.z : WILD_SPAWN.z;
   setZoneVisuals(); themeWild(); setScale(); waveTimer = 0;
   if (r.town) markDiscovered(r.town);   // reaching a biome reveals its adjoining town on the map
@@ -163,7 +163,7 @@ function placeChest() {
   chest = { x: p.x, z: p.z, opened: false, mesh: g };
 }
 function openChest() {
-  if (!chest || chest.opened) return; chest.opened = true;
+  if (!chest || chest.opened) return; chest.opened = true; invalidateDungeonInter();
   if (chest.mesh && chest.mesh.userData.lid) { chest.mesh.userData.lid.rotation.x = -1.15; chest.mesh.userData.lid.position.z = -0.85; }
   spawnExplosion(chest.x, chest.z, 0xffd24d); sfx('gold'); showMsg('The chest creaks open…'); _ev('chest');
   const n = randi(2, 3);
@@ -172,7 +172,7 @@ function openChest() {
   if (Math.random() < 0.4) dropLoot(chest.x + 1, chest.z + 1, 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.6 ? 0 : 1 });
 }
 function activateShrine(s) {
-  if (!s || s.used) return; s.used = true; _ev('shrine');
+  if (!s || s.used) return; s.used = true; invalidateDungeonInter(); _ev('shrine');
   if (zone === 'dungeon' && floorObj && !floorObj.done && bountyProgress(floorObj, 'shrine')) payBounty();
   renderObjective();
   const cr = s.mesh.userData.crystal; if (cr) { cr.material.color.setHex(0x555555); cr.material.emissive.setHex(0x222222); cr.material.emissiveIntensity = 0.05; }
@@ -199,7 +199,7 @@ function renderObjective() {
   if (s !== _objTxt._s) { _objTxt._s = s; _objTxt.textContent = s; _objTxt.style.display = s ? 'block' : 'none'; }
 }
 function enterDungeon(d) {
-  zone = 'dungeon'; depth = d; if (d > character.maxDepth && d !== COW_DEPTH) { character.maxDepth = d; } /* the cow level never counts as a depth checkpoint (keeps it out of waypoints) */ _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; const _dl = d === COW_DEPTH ? '???' : 'Depth ' + d; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + _dl);
+  zone = 'dungeon'; depth = d; invalidateDungeonInter(); if (d > character.maxDepth && d !== COW_DEPTH) { character.maxDepth = d; } /* the cow level never counts as a depth checkpoint (keeps it out of waypoints) */ _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; const _dl = d === COW_DEPTH ? '???' : 'Depth ' + d; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + _dl);
   if (depth === COW_DEPTH) {
     floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; if (d_cowExit) d_cowExit.group.visible = false;
     spawnCowKing(); bossActive = true;
@@ -225,23 +225,32 @@ let shopAnchor = null;
    state (bossActive gate, shrine `used`) that must be re-read each frame. */
 let _townInter = null;
 function invalidateTownInter() { _townInter = null; }
+/* wild list is static for a whole wild visit (region fixed on entry by enterWild); dungeon list is static for a
+   whole floor except for its dynamic state (shrine used/chest opened/boss slain), each of which invalidates it.
+   Same cache-or-build-then-store shape as _townInter above — just multi-statement instead of one literal. */
+let _wildInter = null;
+function invalidateWildInter() { _wildInter = null; }
+let _dungeonInter = null;
+function invalidateDungeonInter() { _dungeonInter = null; }
 /** @returns {Interactable[]} */
 function interactables() {
   if (zone === 'town') return _townInter || (_townInter = [...npcs.filter(n => !n.towns || (curTownArea && n.towns.includes(curTownArea.id))).map(n => ({ kind: n.kind, x: n.x, z: n.z })), { kind: 'wild', x: t_wildPortal.x, z: t_wildPortal.z }, { kind: 'waypoint', x: t_waypoint.x, z: t_waypoint.z }, { kind: 'cauldron', x: t_cauldron.x, z: t_cauldron.z }, ...(curTownArea && curTownArea.id === 'town' && character && character.flags && character.flags.devilSlain ? [{ kind: 'cowportal', x: t_cowIdol.x, z: t_cowIdol.z }] : [])]); /* the bovine idol only answers in Aldermere after the Devil falls; cache invalidates on every town entry */
   if (zone === 'wild') {
+    if (_wildInter) return _wildInter;
     const r = curRegion || REGIONS[0];
     /** @type {Interactable[]} */
     const arr = [{ kind: 'towngate', x: wpTown.x, z: wpTown.z, area: r.town }, { kind: 'cave', x: wpCave.x, z: wpCave.z }, { kind: 'waypoint', x: w_waypoint.x, z: w_waypoint.z }];
     if (r.next) arr.push({ kind: 'wildnext', x: wpNext.x, z: wpNext.z, to: r.next });
     if (r.prev) arr.push({ kind: 'wildprev', x: wpPrev.x, z: wpPrev.z, to: r.prev });
-    return arr;
+    return (_wildInter = arr);
   }
   if (bossActive) return [];
+  if (_dungeonInter) return _dungeonInter;
   /** @type {Interactable[]} */
   const arr = depth === COW_DEPTH ? [{ kind: 'cowexit', x: d_cowExit.x, z: d_cowExit.z }] : [{ kind: 'deeper', x: d_deeperPortal.x, z: d_deeperPortal.z }]; /* cow floor is a dead end — no way down */
   for (const s of shrines) if (!s.used) arr.push({ kind: 'shrine', x: s.x, z: s.z, ref: s });
   if (chest && !chest.opened) arr.push({ kind: 'chest', x: chest.x, z: chest.z });
-  return arr;
+  return (_dungeonInter = arr);
 }
 function markDiscovered(id) { if (character && character.discovered && !character.discovered[id]) { character.discovered[id] = true; showMsg('Discovered ' + ((AREAS.find(a => a.id === id) || {}).name || id) + '!'); saveProgress(false); } }
 function wildForTown(townId) { const w = REGIONS.find(r => r.town === townId); return w ? w.id : REGIONS[0].id; }
