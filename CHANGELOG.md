@@ -9,6 +9,59 @@ holds the authoritative, fully detailed version.
 > Note: releases are published as `sanctuary.html`. The `vNN` labels below are
 > the development version numbers tracked via git tags.
 
+## v50 — The Roadmap Release: Rooms, the Barbarian & the Endgame's First Keys
+- **Dungeon floors are places now**: a procedural room-and-door generator
+  (guaranteed-connected room graphs, instanced walls with real collision,
+  room-aware monster spawns, walls drawn on the minimap, the descent portal in
+  the farthest room, and a hidden treasure chest on most floors). Boss floors
+  stay open arenas.
+- **The Barbarian** — fourth class (Rend / Frenzy / Shockwave) with a new
+  four-sector Skill Forest (the Fury sector, new notables & keystones).
+- **Offhands & weapon subtypes**: shields (Block %), tomes and quivers in a new
+  paper-doll slot; weapon bases now carry speed classes (daggers fast, war
+  hammers slow) and ~40% of new melee/ranged weapons roll **two-handed**
+  (+40% damage, locks the offhand).
+- **Bosses telegraph**: data-driven per-boss ability kits (breath cones,
+  ring-waves, 50%-HP add-phases) with growing ground markers before every big
+  hit; three new deep bosses at Depths 35/50/65. Monsters gained signature
+  moves (Brute charge-stun, Hellhound pounce, Shaman healing totems, Wraith
+  blinks); elites gained Molten / Walling / Vortex zoning affixes.
+- **Difficulty is earned**: tiers add mechanics (elite affix count, spawn
+  density, resist deepening) and unlock by reached depth (Hard 8 / Hell 20 /
+  Inferno 35). Felling **Pyraxis on Inferno** grants the Sigil of the Inferno —
+  a Waypoint straight to Depth 666 and Belphegor.
+- **Journal**: 22 achievements riding a new always-on event bus, paying gold
+  and Dust. Wilderness regions roll **Hunts** (cull/stalker objectives); floor
+  bounties grew elite/shrine kinds; two new shrines (Stone, Greed); the Gem
+  Hoarder goblin.
+- **Economy split**: selling pays gold only, salvaging pays Dust only; the
+  Exotic Merchant became the **Dust shop** (caches + a Relic of the Day);
+  right-click **item locks** protect gear from every sell/salvage path;
+  targeted crafting rerolls or imbues single affixes; stash grew to 3 tabs
+  (240). Legendary-touched rares, four new uniques, three six-piece class
+  sets, skill **rank-ups** past rank 1, trainable Techniques.
+- **QoL & platform**: buff-timer chips, "Slain by …" death recaps, smooth
+  co-op ghosts with health bars, Magic Find halves compose (bugfix), the four
+  dead rune behaviors shipped, stun works, and **three.js is self-hosted** —
+  zero CDN dependencies at runtime. Save format bumped to **v8** (additive).
+
+## v49 — Gems, Sockets, Ability Bar & Rune Trees
+- Active skills now run off a **6-slot action bar** (LMB/RMB + four hotkeys),
+  unlocked automatically by class level; slot 0 is always the basic attack.
+- **Per-skill rune trees**: spend ability points (+1 per level from L2) on each
+  skill's tree — minor mods (damage / cooldown / mana), one of three mutually
+  exclusive shape runes, and a keystone.
+- **Gems & sockets**: items roll sockets; a gem's bonus depends on the slot it
+  sits in. Manage them at the new tabbed **Jeweler** (buy, reroll, socket,
+  combine 3→1) — plus a Gems tab in the backpack with stat tooltips.
+- **Dust crafting**: salvage gear into ✦ Dust, then **reforge** commons/magics/
+  rares (small chance to bump rarity) and add sockets at the Smith.
+- New defensive/utility stats: Dodge, Damage Reduction, Life on Hit, Magic Find,
+  Gold Find, Cooldown Reduction; resistances are element-specific + All-Resist.
+- Floor bounties, shrines, champion/goblin monster variants; per-biome dungeon
+  maps. Save format bumped to **v7** (loadout / rune trees / ability points /
+  gems added by an additive migration that never touches existing fields).
+
 ## v48 — Open World & Save I/O
 - Three separate wilderness maps merged into one large open world (~2.4× bigger),
   split into three concentric biome rings: Greenwilds (Lv 1) → Frostfen (Lv 7) →

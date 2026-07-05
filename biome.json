@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["node_modules", "assets", "Archive", "Docs", "graphify-out", "workspace", "Ultimate Monsters"]
+    "ignore": ["node_modules", "assets", "vendor", "Archive", "Docs", "graphify-out", "workspace", "Ultimate Monsters"]
   },
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
@@ -32,7 +32,7 @@
   },
   "overrides": [
     {
-      "include": ["game.js", "Server/**", "*.html"],
+      "include": ["js/**", "Server/**", "*.html"],
       "formatter": { "enabled": false }
     }
   ]
