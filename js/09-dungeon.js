@@ -35,6 +35,33 @@ let dungeonLayout = null; // per-floor room graph (genDungeonLayout, 00-core); n
 function _nearWallLine(lay, x, z, m) { for (const w of lay.walls) { const dx = w.x2 - w.x1, dz = w.z2 - w.z1; const L2 = dx * dx + dz * dz || 1; let t = ((x - w.x1) * dx + (z - w.z1) * dz) / L2; t = clamp(t, 0, 1); if (Math.hypot(x - (w.x1 + dx * t), z - (w.z1 + dz * t)) < m) return true; } return false; }
 function _nearDoorGap(lay, x, z, m) { for (const d of lay.doors) { if (Math.hypot(x - d.x, z - d.z) < m) return true; } return false; } /* a prop collider inside a 9u door gap can seal the room graph — keep scatter well clear */
 const _dM4 = new THREE.Matrix4(), _dQ = new THREE.Quaternion(), _dE = new THREE.Euler(), _dV = new THREE.Vector3(), _dSc = new THREE.Vector3();
+/* Broad-phase collider bucket for dungeon floors: keys dungeonColliders into the SAME G×G room-grid cells
+   genDungeonLayout/layoutRoomAt already compute (00-core.js) — "i,j" -> collider[]. ponytail: this is a 3x3-cell
+   scan over the dungeon's own existing room grid, not a new spatial-grid class; monsters/projectiles are left
+   unbucketed on purpose (MOB_CAP already keeps those checks cheap) — upgrade path is reusing _dungCellKey for
+   them too if MOB_CAP is ever raised. */
+const _dungColGrid = new Map();
+function _dungCellKey(x, z) {
+  const lay = dungeonLayout;
+  const i = clamp(Math.floor((x + lay.half) / lay.cs), 0, lay.G - 1), j = clamp(Math.floor((z + lay.half) / lay.cs), 0, lay.G - 1);
+  return i + ',' + j;
+}
+function _dungGridRebuild() { _dungColGrid.clear(); if (!dungeonLayout) return; for (const col of dungeonColliders) _dungGridAdd(col); }
+function _dungGridAdd(col) { if (!dungeonLayout) return; const k = _dungCellKey(col.x, col.z); let arr = _dungColGrid.get(k); if (!arr) { arr = []; _dungColGrid.set(k, arr); } arr.push(col); }
+function _dungGridRemove(col) { if (!dungeonLayout) return; const arr = _dungColGrid.get(_dungCellKey(col.x, col.z)); if (!arr) return; const i = arr.indexOf(col); if (i >= 0) arr.splice(i, 1); }
+/* Returns the union of colliders in (x,z)'s cell + its 8 neighbors (3x3 ring). Falls back to the flat
+   dungeonColliders array when there's no room grid (boss/arena floors have few colliders — no partitioning needed). */
+function dungeonCollidersNear(x, z) {
+  const lay = dungeonLayout;
+  if (!lay) return dungeonColliders;
+  const ci = clamp(Math.floor((x + lay.half) / lay.cs), 0, lay.G - 1), cj = clamp(Math.floor((z + lay.half) / lay.cs), 0, lay.G - 1);
+  const out = [];
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= lay.G || j >= lay.G) continue;
+    const arr = _dungColGrid.get(i + ',' + j); if (arr) for (const c of arr) out.push(c);
+  }
+  return out;
+}
 function _imSetTF(im, tf) { for (let i = 0; i < tf.length; i++) { const t = tf[i], s = t.s || 1; _dE.set(t.rx || 0, t.ry || 0, t.rz || 0); _dQ.setFromEuler(_dE); _dV.set(t.x, t.y || 0, t.z); _dSc.set(t.sx || s, t.sy || s, t.sz || s); _dM4.compose(_dV, _dQ, _dSc); im.setMatrixAt(i, _dM4); } im.instanceMatrix.needsUpdate = true; }
 /* Fresh layout on (re-)entry: re-randomize each tagged InstancedMesh's instance positions/rotations within the
    playable disc (keeping each instance's authored scale + collider radius) and rebuild the dynamic collider set.
@@ -89,6 +116,7 @@ function _rescatterDungeon(c) {
       dungeonColliders.push({ x, z, r: 0.9 });
     }
   }
+  _dungGridRebuild();
 }
 function _buildDungeonBiome(depth, th) {
   const sub = new THREE.Group(); sub.name = 'dbiome:' + th.name; dungeonGroup.add(sub);

@@ -76,8 +76,8 @@ const _explMatC = {}; function spawnExplosion(x, z, col) { const mat = _explMatC
 const hazards = [], telegraphs = [], tempWalls = [];
 function spawnTelegraph(x, z, r, ms, col, cb) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.55)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.22, z); m.scale.setScalar(r * 0.3); scene.add(m); telegraphs.push({ x, z, r, t: ms, t0: ms, mesh: m, cb }); }
 function spawnHazard(x, z, r, life, dps, col, src) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m, src: src || 'burning ground' }); }
-function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); tempWalls.push({ col, life, mesh: m }); }
-function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); return; } } }
+function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); if (zone === 'dungeon') _dungGridAdd(col); tempWalls.push({ col, life, mesh: m }); }
+function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); if (zone === 'dungeon') _dungGridRemove(col); return; } } }
 function tickFieldFx(dt) {
   for (const tg of telegraphs) { tg.t -= dt; const p = 1 - Math.max(0, tg.t / tg.t0); tg.mesh.scale.setScalar(tg.r * (0.3 + 0.7 * p) * 0.85); if (tg.t <= 0) { tg.dead = true; removeMesh(tg.mesh); if (tg.cb) tg.cb(); } }
   _compact(telegraphs, _deadFlag, null);
@@ -208,4 +208,7 @@ const tmpV = new THREE.Vector3(); function floatText(txt, x, z, col) { _ev('floa
 
 /* ---------- collision ---------- */
 function activeColliders() { return zone === 'town' ? townColliders : zone === 'wild' ? wildColliders : zone === 'dungeon' ? dungeonColliders : []; }
+/* Broad-phase entry point for resolveCircles: dungeon floors use the room-grid bucket (dungeonCollidersNear,
+   09-dungeon.js), wild/town are untouched — same flat array as before. */
+function nearbyColliders(x, z) { return zone === 'dungeon' ? dungeonCollidersNear(x, z) : activeColliders(); }
 function resolveCircles(e, r, arr, iters) { for (let it = 0; it < iters; it++) { for (const c of arr) { if (c === e) continue; const dx = e.x - c.x, dz = e.z - c.z; let d = Math.hypot(dx, dz); const min = r + (c.r || 1); if (d < min) { if (d < 0.0001) { d = 0.0001; e.x += 0.01; } e.x += dx / d * (min - d); e.z += dz / d * (min - d); } } } }

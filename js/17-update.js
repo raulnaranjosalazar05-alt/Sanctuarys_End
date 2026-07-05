@@ -35,7 +35,7 @@ function update(dt) {
       }
       else { if (d > m.r + player.r - 0.4) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 60; damagePlayer(m.dmg, m.elite, m.name); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; m.flash = 8; if (m.hp <= 0) killMonster(m); } } } }
     }
-    resolveCircles(m, m.r, activeColliders(), 1); { const dx = m.x - player.x, dz = m.z - player.z; let d = Math.hypot(dx, dz); const min = m.r + player.r; if (d < min && d > 0.0001) { m.x += dx / d * (min - d); m.z += dz / d * (min - d); } } clampEntToZone(m);
+    resolveCircles(m, m.r, nearbyColliders(m.x, m.z), 1); { const dx = m.x - player.x, dz = m.z - player.z; let d = Math.hypot(dx, dz); const min = m.r + player.r; if (d < min && d > 0.0001) { m.x += dx / d * (min - d); m.z += dz / d * (min - d); } } clampEntToZone(m);
     m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
   _compact(monsters, _deadFlag, null); // mesh cleanup already ran at kill/flee time (killMesh/removeMob); this just shrinks the array
@@ -127,7 +127,7 @@ function clampEntToZone(e) { if (zone === 'town') { const d = Math.hypot(e.x, e.
 function clampToZone() { clampEntToZone(player); }
 function moveToward(tx, tz, dt) {
   const a = Math.atan2(tx - player.x, tz - player.z); const fr = Math.min(dt || 16.667, 50) / 16.667; const sp = player.speed * 0.96 * fr * (now() < player.chillUntil ? 0.5 : 1) * (player.buffs.fleetUntil > now() ? player.buffs.fleetMul : 1); player.x += Math.sin(a) * sp; player.z += Math.cos(a) * sp; player.dir = a; player.bob += 0.3;
-  resolveCircles(player, player.r, activeColliders(), 2);
+  resolveCircles(player, player.r, nearbyColliders(player.x, player.z), 2);
   if (isCombat()) resolveCircles(player, player.r, monsters, 1);
   clampEntToZone(player);
 }
