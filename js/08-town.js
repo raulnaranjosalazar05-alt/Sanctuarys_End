@@ -262,28 +262,32 @@ function mergeStaticScenery(group, skip) {
   return { draws: built.length, collapsed: toRemove.length };
 }
 /* Phase 5: resident town-scenery cache (mirrors dungeon/wild). Each town id's scenery is built + merged ONCE into
-   its own sub-group under townSceneryGroup; re-entry just toggles .visible and restores the cached colliders/fires
-   (no dispose, no re-merge) so GPU pipelines stay warm. ponytail: unlike wild's kit-upgrade check, a cached town
-   never re-builds if props/buildings finish loading after its first visit (ceiling shared with dungeonBiomeCache,
-   which has the same trait) — acceptable since asset loads finish well before a player reaches their 2nd town. */
+   its own sub-group under townSceneryGroup; re-entry toggles .visible and restores the cached colliders/fires
+   (no dispose, no re-merge) so GPU pipelines stay warm. Buildings/props/cobble load async and each fires a buildTown
+   rebuild (rebuildZoneScenery, cobble hook) to swap the procedural fallback for real assets. Those inputs are
+   monotonic, so a sub built before one arrived is stale — mirror wild's kit-upgrade check (07-wild.js): reuse the
+   cache only while its kit signature still matches, else tear the sub down (meshes + its own light bucket) and
+   rebuild in place. Without this the title-screen build (16-zones.js, pre-asset) froze the fallback forever. */
 function buildTown(area) {
   const id = (area && area.id) || 'town';
   townColliders.length = 0; townFires.length = 0;
+  const kitSig = (BUILDINGS_READY ? 1 : 0) + (PROPS_READY ? 2 : 0) + (_cobbleBase ? 4 : 0);
   let sub = townCache.get(id), cfg;
-  if (sub) {
+  if (sub && sub.userData.kit === kitSig) {
     for (const s of townCache.values()) s.visible = (s === sub);
     cfg = sub.userData.cfg;
     for (const c of sub.userData.colliders) townColliders.push(c);
     for (const f of sub.userData.fires) townFires.push(f);
   } else {
     for (const s of townCache.values()) s.visible = false;
-    sub = new THREE.Group(); sub.name = 'town:' + id; townSceneryGroup.add(sub);
-    _lightBucket = 'town';
+    if (sub) { clearGroup(sub); clearLightBucket('town:' + id); } /* stale: an async asset loaded since first build → rebuild in place */
+    else { sub = new THREE.Group(); sub.name = 'town:' + id; townSceneryGroup.add(sub); townCache.set(id, sub); }
+    sub.visible = true;
+    _lightBucket = 'town:' + id;
     cfg = (TOWN_BUILDERS[id] || buildAldermere)(sub);
     _lightBucket = 'static';
     try { mergeStaticScenery(sub, new Set(townFires.map(f => f.flame))); } catch (e) { console.warn('town scenery merge failed; using unmerged:', e && e.message); } /* Phase 4: collapse static draws; skip animated fire flames */
-    sub.userData.cfg = cfg; sub.userData.colliders = townColliders.slice(); sub.userData.fires = townFires.slice();
-    townCache.set(id, sub);
+    sub.userData.cfg = cfg; sub.userData.colliders = townColliders.slice(); sub.userData.fires = townFires.slice(); sub.userData.kit = kitSig;
   }
   const A = cfg.anchors;
   t_wildPortal.x = A.portal[0]; t_wildPortal.z = A.portal[1]; t_wildPortal.group.position.set(A.portal[0], 0, A.portal[1]);
