@@ -85,8 +85,10 @@ function tickFieldFx(dt) {
   _compact(hazards, _deadFlag, null);
   for (const w of tempWalls) { w.life -= dt; if (w.life <= 0) { w.dead = true; _dropWallCol(w.col); removeMesh(w.mesh); } }
   _compact(tempWalls, _deadFlag, null);
+  for (const f of mfields) { f.acc -= dt; if (f.acc <= 0 && f.ticks > 0) { f.acc += f.interval; f.ticks--; spawnExplosion(f.x, f.z, f.col); const r2 = f.r * f.r; for (const m of monstersNear(f.x, f.z, f.r)) { const dx = m.x - f.x, dz = m.z - f.z; if (dx * dx + dz * dz < r2) { hitMonsterProj(m, f.dmg, f.kind); if (m.hp > 0 && f.onHit) applyOnHit(m, f.onHit, f.dmg); } } } if (f.ticks <= 0) f.dead = true; } /* Phase 2.3: lingering pulse fields */
+  _compact(mfields, _deadFlag, null);
 }
-function clearFieldFx() { for (const tg of telegraphs) removeMesh(tg.mesh); telegraphs.length = 0; for (const h of hazards) removeMesh(h.mesh); hazards.length = 0; for (const w of tempWalls) { _dropWallCol(w.col); removeMesh(w.mesh); } tempWalls.length = 0; }
+function clearFieldFx() { for (const tg of telegraphs) removeMesh(tg.mesh); telegraphs.length = 0; for (const h of hazards) removeMesh(h.mesh); hazards.length = 0; for (const w of tempWalls) { _dropWallCol(w.col); removeMesh(w.mesh); } tempWalls.length = 0; mfields.length = 0; }
 const POTION_PCT = 0.40, POTION_TIER_PCT = 0.05;
 function potionHealAmt() { return Math.round(player.hpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
 function potionManaAmt() { return Math.round(player.mpMax * (POTION_PCT + (character.potionTier || 0) * POTION_TIER_PCT)); }
