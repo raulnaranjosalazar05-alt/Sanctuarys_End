@@ -36,7 +36,7 @@ function update(dt) {
       else { if (d > m.r + player.r - 0.4) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 60; damagePlayer(m.dmg, m.elite, m.name); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; m.flash = 8; if (m.hp <= 0) killMonster(m); } } } }
     }
     resolveCircles(m, m.r, nearbyColliders(m.x, m.z), 1); { const dx = m.x - player.x, dz = m.z - player.z; let d = Math.hypot(dx, dz); const min = m.r + player.r; if (d < min && d > 0.0001) { m.x += dx / d * (min - d); m.z += dz / d * (min - d); } } clampEntToZone(m);
-    m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
+    m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer && _animActive(m.x, m.z)) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
   _compact(monsters, _deadFlag, null); // mesh cleanup already ran at kill/flee time (killMesh/removeMob); this just shrinks the array
 
@@ -56,7 +56,7 @@ function update(dt) {
     else if (e.mesh.material) { e.mesh.material.opacity = e.life / 14; }
   }
   _compact(fx, _deadLife0, _killMesh);
-  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
+  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
 
   for (const l of loots) {
     l.t += dt * 0.005; l.icon.position.y = 1 + Math.sin(l.t) * 0.25; l.icon.rotation.y += 0.04; if (l.ring) { l.ring.rotation.z += 0.02; const ps = 1 + Math.sin(l.t * 1.4) * 0.12; l.ring.scale.set(ps, ps, ps); } if (l.beam && l.tier >= 4) l.beam.material.opacity = 0.4 + Math.sin(l.t * 2) * 0.12; const _lpdx = l.x - player.x, _lpdz = l.z - player.z, _lpr = player.r + 1.4; if (_lpdx * _lpdx + _lpdz * _lpdz < _lpr * _lpr) {
@@ -78,7 +78,7 @@ function update(dt) {
   for (const f of activeFires) { f.light.intensity = f.base + Math.sin(T * 0.02 + f.x) * 1.26; f.flame.scale.y = 1 + Math.sin(T * 0.03 + f.z) * 0.15; f.flame.rotation.y += 0.03; } /* Phase 1a: flicker amplitude scaled by ~Math.PI (0.4->1.26); f.base already scales with the x-pi construction intensity. */
   for (const c of waypointMarks) { c.rotation.y += 0.03; c.position.y = 5.4 + Math.sin(T * 0.003) * 0.18; }
   if (zone === 'wild') { wpTown.ring.rotation.z += 0.02; wpCave.ring.rotation.z += 0.02; if (wpNext.group.visible) wpNext.ring.rotation.z += 0.02; if (wpPrev.group.visible) wpPrev.ring.rotation.z += 0.02; }
-  else if (zone === 'town') { t_wildPortal.ring.rotation.z += 0.02; for (const n of npcs) { n.group.userData.marker.rotation.y += 0.04; n.group.userData.marker.position.y = 4.6 + Math.sin(T * 0.004) * 0.2; if (n.group.userData.npcEnt) n.group.userData.npcEnt.userData.mixer.update(dt * 0.001); } for (const v of townVillagers) { if (v.userData.mixer) v.userData.mixer.update(dt * 0.001); } if (t_cauldron) { t_cauldron.marker.rotation.y += 0.05; t_cauldron.marker.position.y = 3.4 + Math.sin(T * 0.004) * 0.22; t_cauldron.brew.position.y = 2.02 + Math.sin(T * 0.008) * 0.05; } }
+  else if (zone === 'town') { t_wildPortal.ring.rotation.z += 0.02; for (const n of npcs) { n.group.userData.marker.rotation.y += 0.04; n.group.userData.marker.position.y = 4.6 + Math.sin(T * 0.004) * 0.2; if (n.group.userData.npcEnt && _animActive(n.group.position.x, n.group.position.z)) n.group.userData.npcEnt.userData.mixer.update(dt * 0.001); } for (const v of townVillagers) { if (v.userData.mixer && _animActive(v.position.x, v.position.z)) v.userData.mixer.update(dt * 0.001); } if (t_cauldron) { t_cauldron.marker.rotation.y += 0.05; t_cauldron.marker.position.y = 3.4 + Math.sin(T * 0.004) * 0.22; t_cauldron.brew.position.y = 2.02 + Math.sin(T * 0.008) * 0.05; } }
   else if (d_deeperPortal) { d_deeperPortal.ring.rotation.z += 0.02; if (d_cowExit && d_cowExit.group.visible) d_cowExit.ring.rotation.z += 0.02; }
   torch.position.set(player.x, 9, player.z); playerGlow.position.set(player.x, 14, player.z); updateAmbient(dt); if (typeof NET !== 'undefined') NET.tick(dt);
 
@@ -133,6 +133,13 @@ function moveToward(tx, tz, dt) {
   clampEntToZone(player);
 }
 function stepEnt(e, tx, tz, sp) { const a = Math.atan2(tx - e.x, tz - e.z); e.x += Math.sin(a) * sp; e.z += Math.cos(a) * sp; clampEntToZone(e); }
+/* Phase 3: gate skeletal AnimationMixer.update by distance from the player. The camera is a fixed top-down
+   follow-cam centered on the player, so anything past ~75 world units is off-screen; freezing its skeleton
+   (and thus its skinned draw on the beauty + shadow passes) is invisible. Generous radius so nothing that
+   could be on-screen is ever gated — monsters cluster near the player (rarely gated); the real saving is the
+   spread-out town villagers/NPCs. mixer.update uses per-frame dt only, so a re-entering entity just resumes
+   (no accumulated-time jump). The hero is never gated (always on-screen). */
+function _animActive(x, z) { const dx = x - player.x, dz = z - player.z; return dx * dx + dz * dz < 5625; }
 /* Phase 1: hoisted out of the per-hit damagePlayer() body (was allocated on every hit that carried elite resist mods). */
 const RK = { fire: 'fireRes', frost: 'frostRes', lightning: 'lightningRes', poison: 'poisonRes' };
 function damagePlayer(d, mods, src) {
