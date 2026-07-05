@@ -155,7 +155,7 @@ function saveProgress(showNote) {
     // showNote=true save or autosave tick. Thread success back via callback if that gap ever matters.
     clearTimeout(_saveDebounce);
     const slot = currentSlot, ch = character;
-    _saveDebounce = setTimeout(() => { _saveDebounce = null; SAVE.saveCharacter(slot, ch); }, 200);
+    _saveDebounce = setTimeout(() => { _saveDebounce = null; SAVE.saveCharacterAsync(slot, ch); }, 200); /* Phase 1: hot autosave path writes via the coalesced idle persist (off the frame path); unload/explicit saves stay synchronous. */
     return true;
   }
   const ok = SAVE.saveCharacter(currentSlot, character); flashSaved(ok); return ok;

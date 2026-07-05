@@ -33,7 +33,21 @@ const SAVE = {
     if (!ch.ach || typeof ch.ach !== 'object') ch.ach = { u: {}, n: {} }; else { ch.ach.u = ch.ach.u || {}; ch.ach.n = ch.ach.n || {}; }
     return ch;
   },
-  persist() { try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); return true; } catch (e) { return false; } },
+  persist() { if (this._idleH != null) { try { (typeof cancelIdleCallback !== 'undefined' ? cancelIdleCallback : clearTimeout)(this._idleH); } catch (e) {} this._idleH = null; } try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); return true; } catch (e) { return false; } },
+  /* Phase 1: coalesced idle persist for the hot autosave path. The full-_data JSON.stringify + blocking
+     localStorage.setItem is a recurring main-thread stall that grows with stash size; deferring it to an idle
+     callback (fallback setTimeout) moves it off the frame path. Any synchronous persist() supersedes a pending
+     idle write (see the cancel above), and flushSaveProgress() on unload commits synchronously — so no data is
+     lost. Format unchanged (still one key, whole _data) → no migration risk. */
+  _idleH: null,
+  persistIdle() {
+    if (this._idleH != null) return; /* already queued — coalesce */
+    const run = () => { this._idleH = null; try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); } catch (e) {} };
+    if (typeof requestIdleCallback !== 'undefined') this._idleH = requestIdleCallback(run, { timeout: 2000 });
+    else if (typeof setTimeout !== 'undefined') this._idleH = setTimeout(run, 0);
+    else run();
+  },
+  saveCharacterAsync(i, ch) { ch.lastPlayed = Date.now(); this._data.slots[i] = ch; this.persistIdle(); return true; },
   getSlot(i) { return this._data.slots[i]; },
   newCharacter(name, cls) {
     cls = CLASSES[cls] ? cls : 'warrior'; const c = CLASSES[cls]; const skills = {}; for (const id in SKILLDEFS) skills[id] = 0;

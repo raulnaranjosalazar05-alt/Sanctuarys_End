@@ -145,7 +145,7 @@ const TOWN_GROUND_SET = 'greenwilds_forest_floor';        /* default town ground
 const TOWN_GROUND_BY_ID = { emberhold: 'ashlands_dark_rock', highreach: 'frostfen_snow' }; /* per-town overrides: each town gets its biome ring's ground (Emberhold->Ashlands rock, Highreach->Frostfen snow), not grass */
 const DUNGEON_FLOOR_SET = 'dungeon_floor_cobble', DUNGEON_WALL_SET = 'dungeon_wall_brick';
 const TEX_BASE = 'assets/textures/';
-const BASIS_PATH = 'https://unpkg.com/three@0.184.0/examples/jsm/libs/basis/'; /* basis_transcoder.js + .wasm, same CDN as the import map */
+const BASIS_PATH = 'vendor/three-0.184.0/examples/jsm/libs/basis/'; /* Phase 1: vendored locally (basis_transcoder.js + .wasm, three r184) — same-origin, offline-safe. Was a runtime unpkg CDN fetch that broke all KTX2 ground textures when the network was blocked (silent fallback to procedural ground). */
 let _ktx2 = null; const _groundTexCache = {}, _groundTexLoading = {};
 let _whiteTex = null, _flatNTex = null;
 function _whitePx() { if (_whiteTex) return _whiteTex; _whiteTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); _whiteTex.colorSpace = THREE.NoColorSpace; _whiteTex.needsUpdate = true; return _whiteTex; } /* neutral roughness(=1)/AO(=none) placeholder */
