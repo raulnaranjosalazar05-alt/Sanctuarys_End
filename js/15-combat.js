@@ -138,6 +138,7 @@ function tickStatuses(ent, dt, isPlayer) {
 function hitMonster(m, from) { sfx('melee'); meleeDamage(m, 1, from); }
 function hitMonsterProj(m, dmg, kind) { const rm = monsterResistMult(m, kind); if (rm < 1) { floatText('resist', m.x, m.z + 1, '#9aa'); } dmg *= rm; if (player.elemMult && player.elemMult[kind]) dmg *= player.elemMult[kind]; m.hp -= dmg; m.flash = 8; if (!m._nova) spawnSparks(m.x, m.z, kind === 'frost' ? 0x9fe8ff : kind === 'poison' ? 0x8fe07a : kind === 'lightning' ? 0xcfe8ff : kind === 'phys' ? 0xd8d8e8 : 0xff8a3a, 5); floatText(Math.round(dmg), m.x, m.z, rm > 1 ? '#ff8a6a' : '#ffe'); if (player.effects.lifesteal > 0) player.hp = Math.min(player.hpMax, player.hp + dmg * player.effects.lifesteal); if (player.effects.manaleech > 0) player.mp = Math.min(player.mpMax, player.mp + dmg * player.effects.manaleech); if (m._nova !== true) procOnHit(m, dmg); if (m.hp <= 0) killMonster(m); }
 function killMonster(m) {
+  if (m.dead) return; // idempotent: removal is deferred (m.dead + end-of-frame _compact in 17-update), so a 2nd damage source this frame (deathnova chain, another volley bolt, next-frame AoE) must not re-drop loot
   _ev(m.boss ? 'killBoss' : m.elite ? 'killElite' : 'kill');
   gainXP(m.xp); player.kills++; killsTxt.textContent = 'Slain: ' + player.kills;
   if (zone === 'dungeon') { if (floorObj && !floorObj.done) { let paid = bountyProgress(floorObj, m.champion ? 'champion' : 'kill'); if (!paid && m.elite && bountyProgress(floorObj, 'elite')) paid = true; if (paid) payBounty(); } renderObjective(); }

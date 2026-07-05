@@ -36,5 +36,5 @@ function closeWaypoints() { wpModal.style.display = 'none'; syncBackdrop(); }
 document.getElementById('wpBtn').onclick = openWaypoints;
 document.getElementById('wpClose').onclick = closeWaypoints;
 // Waypoint / Sound / Debug hotkeys handled by the unified keybind dispatcher above
-addEventListener('beforeunload', () => { flushSaveProgress(); }); // unconditional: flushSaveProgress() itself no-ops when nothing is queued, and gameOver() clears `running` before its own save can be flushed
+addEventListener('beforeunload', () => { flushSaveProgress(); }); // unconditional: flushSaveProgress() commits live player state (not just a pending debounce), and runs regardless of `running` since gameOver() clears it before its own save
 document.getElementById('backdrop').onclick = () => { if (wpModal && wpModal.style.display === 'block') closeWaypoints(); else if (mpModal && mpModal.style.display === 'block') closeMP(); else if (settingsModal && settingsModal.style.display === 'block') closeSettings(); else if (helpModal && helpModal.style.display === 'block') closeHelp(); };

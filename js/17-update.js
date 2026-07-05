@@ -159,7 +159,9 @@ function saveProgress(showNote) {
   }
   const ok = SAVE.saveCharacter(currentSlot, character); flashSaved(ok); return ok;
 } /* surface a failure even on a silent autosave — a full localStorage quietly loses progress otherwise */
-function flushSaveProgress() { if (_saveDebounce === null) return; clearTimeout(_saveDebounce); _saveDebounce = null; if (currentSlot !== null && character) SAVE.saveCharacter(currentSlot, character); }
+/* Unload flush: cancel any pending debounce and commit CURRENT player state synchronously — must save the
+   live delta (xp/gold/kills accrued since the last autosave), not just a pending debounced write. */
+function flushSaveProgress() { clearTimeout(_saveDebounce); _saveDebounce = null; if (currentSlot === null || !character) return; character.level = player.level; character.xp = player.xp; character.xpNext = player.xpNext; character.gold = player.gold; character.kills = player.kills; character.potions = player.hpPotions; character.hpPotions = player.hpPotions; character.mpPotions = player.mpPotions; SAVE.saveCharacter(currentSlot, character); }
 function flashSaved(ok) { const n = document.getElementById('saveNote'); if (ok === false) { n.textContent = '⚠ Save failed — storage full'; n.style.color = '#e07a5a'; } else { n.textContent = 'Saved'; n.style.color = ''; } n.style.opacity = 1; clearTimeout(n._t); n._t = setTimeout(() => n.style.opacity = 0, ok === false ? 2600 : 900); }
 
 /* ---------- MINIMAP ---------- */
