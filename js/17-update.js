@@ -39,6 +39,7 @@ function update(dt) {
     m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer && _animActive(m.x, m.z)) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
   _compact(monsters, _deadFlag, null); // mesh cleanup already ran at kill/flee time (killMesh/removeMob); this just shrinks the array
+  rebuildMonsterGrid(); // Phase 2 (opt-in, settings.monGrid): rebuild the monster spatial hash from final positions before the projectile loop queries it; no-op when the setting is off
 
   if (running && isCombat()) tickFieldFx(dt); // telegraphs fire, hazards burn, temp walls expire
 
@@ -46,7 +47,7 @@ function update(dt) {
     if (p.homing && monsters.length) { let hb = null, hd = 1e9; for (const m of monsters) { const dx = m.x - p.x, dz = m.z - p.z, d = dx * dx + dz * dz; if (d < hd) { hd = d; hb = m; } } if (hb) { const sp = Math.hypot(p.vx, p.vz) || 0.8, ca = Math.atan2(p.vx, p.vz), rel = Math.atan2(hb.x - p.x, hb.z - p.z) - ca, da = Math.atan2(Math.sin(rel), Math.cos(rel)), na = ca + clamp(da, -0.09, 0.09); p.vx = Math.sin(na) * sp; p.vz = Math.cos(na) * sp; } }
     p.x += p.vx * 60 * dt / 1000; p.z += p.vz * 60 * dt / 1000; p.life -= fr; p.mesh.position.set(p.x, 2, p.z);
     if (p.kind === 'enemy') { if (Math.hypot(p.x - player.x, p.z - player.z) < player.r + 0.6) { damagePlayer(p.dmg, p.mods, p.src); if (p.chill) applyStatus(player, 'chill', 1400, 0); p.life = 0; } }
-    else { for (const m of monsters) { const _pdx = p.x - m.x, _pdz = p.z - m.z, _pr = m.r + 0.6; if (_pdx * _pdx + _pdz * _pdz < _pr * _pr) { if (p.hit && p.hit.has(m)) continue; hitMonsterProj(m, p.dmg, p.kind); if (m.hp > 0) { if (p.kind === 'frost') m.slow = p.slow; if (p.onHit) applyOnHit(m, p.onHit, p.dmg); if (p.freeze) applyStatus(m, 'chill', 1500, 0); if (p.knockback) { const a = Math.atan2(m.x - p.x, m.z - p.z); m.x += Math.sin(a) * 2.2; m.z += Math.cos(a) * 2.2; } } if (p.vampiric) player.hp = Math.min(player.hpMax, player.hp + p.dmg * 0.12); projBurst(p); if (p.hit) p.hit.add(m); if (p.pierce && p.pierce > 0) { p.pierce--; } else { p.life = 0; break; } } } }
+    else { for (const m of monstersNear(p.x, p.z, 6)) { const _pdx = p.x - m.x, _pdz = p.z - m.z, _pr = m.r + 0.6; if (_pdx * _pdx + _pdz * _pdz < _pr * _pr) { if (p.hit && p.hit.has(m)) continue; hitMonsterProj(m, p.dmg, p.kind); if (m.hp > 0) { if (p.kind === 'frost') m.slow = p.slow; if (p.onHit) applyOnHit(m, p.onHit, p.dmg); if (p.freeze) applyStatus(m, 'chill', 1500, 0); if (p.knockback) { const a = Math.atan2(m.x - p.x, m.z - p.z); m.x += Math.sin(a) * 2.2; m.z += Math.cos(a) * 2.2; } } if (p.vampiric) player.hp = Math.min(player.hpMax, player.hp + p.dmg * 0.12); projBurst(p); if (p.hit) p.hit.add(m); if (p.pierce && p.pierce > 0) { p.pierce--; } else { p.life = 0; break; } } } }
     if (Math.abs(p.x) > MAP || Math.abs(p.z) > MAP) p.life = 0;
   }
   _compact(projectiles, _deadLife0, _killMesh);
