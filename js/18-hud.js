@@ -1,6 +1,14 @@
 /* Phase 1: hoisted out of the per-frame drawMinimap() call (was a ~14-key object literal allocated every frame), mirroring PROMPT_LABELS below. */
 const colMap = { vendor: '#9f6aff', stash: '#ffd24d', smith: '#ff8a3a', wild: '#6affa0', town: '#9f6aff', cave: '#ff8a3a', deeper: '#c04aff', cauldron: '#55ffa0', towngate: '#ffd24d', waypoint: '#6ab0ff', wildnext: '#bcd0ff', wildprev: '#9ad86a', chest: '#ffd24d', cowportal: '#ffd24d', cowexit: '#ffd24d' };
+let _mmSig = '';
 function drawMinimap() {
+  /* Phase 1: dirty-gate. When there are no monsters and no loot on the ground, the only moving dot is the
+     player arrow — skip the full clear+repaint when the (quantized) player pose and zone are unchanged. Any
+     monster or loot present forces a redraw (they move / spawn), so this only elides genuinely static frames. */
+  if (monsters.length === 0 && loots.length === 0) {
+    const sig = zone + '|' + depth + '|' + ((player.x * 4) | 0) + '|' + ((player.z * 4) | 0) + '|' + ((player.dir * 16) | 0);
+    if (sig === _mmSig) return; _mmSig = sig;
+  } else _mmSig = '';
   mctx.clearRect(0, 0, 170, 170); mctx.save(); mctx.beginPath(); mctx.arc(MMR, MMR, MMR, 0, 7); mctx.clip();
   mctx.fillStyle = 'rgba(10,8,6,0.4)'; mctx.fillRect(0, 0, 170, 170);
   // dungeon room walls — the radar reads as a map
@@ -37,7 +45,7 @@ function setLevelText(n) { const s = String(n); lvlNum.textContent = s; if (lvlB
    zone entry via _resetHudCache() (covers character load) so a fresh char never inherits stale cache. */
 let _gHpPct = NaN, _gHpN = -1, _gHpMax = -1, _gMpPct = NaN, _gMpN = -1, _gMpMax = -1, _gXpPct = NaN, _gHpP = -1, _gMpP = -1;
 let _promptHtml = null, _bbShown = null, _bbName = '', _bbPct = -1;
-function _resetHudCache() { _gHpPct = NaN; _gHpN = -1; _gHpMax = -1; _gMpPct = NaN; _gMpN = -1; _gMpMax = -1; _gXpPct = NaN; _gHpP = -1; _gMpP = -1; _promptHtml = null; _bbShown = null; _bbName = ''; _bbPct = -1; }
+function _resetHudCache() { _gHpPct = NaN; _gHpN = -1; _gHpMax = -1; _gMpPct = NaN; _gMpN = -1; _gMpMax = -1; _gXpPct = NaN; _gHpP = -1; _gMpP = -1; _promptHtml = null; _bbShown = null; _bbName = ''; _bbPct = -1; _mmSig = ''; }
 /* Phase 1: hoisted out of the per-frame prompt block (was a ~13-key object literal allocated every frame while near an interactable). Dynamic labels (deeper/towngate) computed inline. */
 const PROMPT_LABELS = { vendor: 'trade with the Merchant', stash: 'open your Stash', smith: 'upgrade gear at the Smith', enchanter: 'enchant gear at the Enchanter', gambler: 'gamble with the Gambler', jeweler: 'visit the Jeweler', premiumVendor: 'trade with the Exotic Merchant', wild: 'enter the Wilderness', town: 'return to Town', cave: 'descend into the Dungeon', waypoint: 'use the Waypoint (fast travel)', cauldron: 'refill Health & Mana potions', shrine: 'commune with the Shrine', chest: 'open the Treasure Chest', cowportal: 'disturb the strange bovine idol', cowexit: 'return to Aldermere' };
 function updateGlobes() {
@@ -153,8 +161,10 @@ function renderSkillbar() {
     d.onmousedown = ev => { ev.stopPropagation(); if (i >= 1) openSkillPanel('abilities'); };
     bar.appendChild(d);
   }
+  _cdNodes = bar.querySelectorAll('.cd'); /* Phase 1: cache the (≤6, static) cooldown nodes at build time so the 15Hz renderSkillCd stops re-running document.querySelectorAll('.cd'); re-queried only when the bar rebuilds. */
 }
-function renderSkillCd() { document.querySelectorAll('.cd').forEach(el => { const id = el.dataset.id; const def = SKILLDEFS[id]; const cd = skillCd(def, id); const rem = cd - (now() - (_cd[id] || -9999)); if (rem > 50) { el.style.display = 'flex'; const prog = clamp(1 - rem / cd, 0, 1) * 360; el.style.background = `conic-gradient(transparent ${prog}deg, rgba(0,0,0,.7) ${prog}deg)`; el.textContent = (rem / 1000).toFixed(1); } else el.style.display = 'none'; }); }
+let _cdNodes = null;
+function renderSkillCd() { if (!_cdNodes) return; _cdNodes.forEach(el => { const id = el.dataset.id; const def = SKILLDEFS[id]; const cd = skillCd(def, id); const rem = cd - (now() - (_cd[id] || -9999)); if (rem > 50) { el.style.display = 'flex'; const prog = clamp(1 - rem / cd, 0, 1) * 360; el.style.background = `conic-gradient(transparent ${prog}deg, rgba(0,0,0,.7) ${prog}deg)`; el.textContent = (rem / 1000).toFixed(1); } else el.style.display = 'none'; }); }
 function showMsg(t) { const m = document.getElementById('msg'); m.textContent = t; m.style.opacity = 1; clearTimeout(m._t); m._t = setTimeout(() => m.style.opacity = 0, 1400); }
 /* ---- buff/debuff timer chips (next to the potion indicator). Rebuilt on the 66ms UI cadence behind a
    composed-string dirty check (renderObjective pattern) so idle frames cost one string compare. ---- */

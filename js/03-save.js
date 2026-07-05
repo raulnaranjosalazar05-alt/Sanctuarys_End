@@ -8,7 +8,7 @@ const SAVE = {
     // Guard every slot: a corrupt/hand-edited/imported slot that isn't a valid character object must not
     // throw out of migrate() — this runs at top level, so an unhandled throw here bricks the whole game
     // on every boot (blank page until localStorage is cleared by hand). Bad slots degrade to empty.
-    this._data.slots = this._data.slots.map(s => { if (!s || typeof s !== 'object' || Array.isArray(s)) return null; try { return this.migrate(s); } catch (e) { return null; } }); this._data.settings = Object.assign({ difficulty: 'Normal', muted: false, volume: 60, music: true, sfx: true, shake: true, dmgnum: true, resScale: 100, shadows: true, postfx: true, bloom: 0.9, exposure: 1.0, reflections: true, ssao: true, colorgrade: true, vfx: true, particles: true, lootFilter: { rarity: { common: true, magic: true, rare: true, set: true, unique: true }, slot: { weapon: true, helm: true, armor: true, gloves: true, boots: true, ring: true, amulet: true }, minIlvl: 0 }, keybinds: {} }, this._data.settings || {}); this.persist(); return this._data;
+    this._data.slots = this._data.slots.map(s => { if (!s || typeof s !== 'object' || Array.isArray(s)) return null; try { return this.migrate(s); } catch (e) { return null; } }); this._data.settings = Object.assign({ difficulty: 'Normal', muted: false, volume: 60, music: true, sfx: true, shake: true, dmgnum: true, resScale: 100, shadows: true, postfx: true, bloom: 0.9, exposure: 1.0, reflections: true, ssao: true, colorgrade: true, vfx: true, particles: true, perfHud: false, lootFilter: { rarity: { common: true, magic: true, rare: true, set: true, unique: true }, slot: { weapon: true, helm: true, armor: true, gloves: true, boots: true, ring: true, amulet: true }, minIlvl: 0 }, keybinds: {} }, this._data.settings || {}); this.persist(); return this._data;
   },
   migrate(ch) {
     ch.base = ch.base || { hpMax: ch.hpMax || 100, mpMax: ch.mpMax || 50, dmg: (ch.dmg || 10) };
@@ -33,7 +33,21 @@ const SAVE = {
     if (!ch.ach || typeof ch.ach !== 'object') ch.ach = { u: {}, n: {} }; else { ch.ach.u = ch.ach.u || {}; ch.ach.n = ch.ach.n || {}; }
     return ch;
   },
-  persist() { try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); return true; } catch (e) { return false; } },
+  persist() { if (this._idleH != null) { try { (typeof cancelIdleCallback !== 'undefined' ? cancelIdleCallback : clearTimeout)(this._idleH); } catch (e) {} this._idleH = null; } try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); return true; } catch (e) { return false; } },
+  /* Phase 1: coalesced idle persist for the hot autosave path. The full-_data JSON.stringify + blocking
+     localStorage.setItem is a recurring main-thread stall that grows with stash size; deferring it to an idle
+     callback (fallback setTimeout) moves it off the frame path. Any synchronous persist() supersedes a pending
+     idle write (see the cancel above), and flushSaveProgress() on unload commits synchronously — so no data is
+     lost. Format unchanged (still one key, whole _data) → no migration risk. */
+  _idleH: null,
+  persistIdle() {
+    if (this._idleH != null) return; /* already queued — coalesce */
+    const run = () => { this._idleH = null; try { localStorage.setItem(this.KEY, JSON.stringify(this._data)); } catch (e) {} };
+    if (typeof requestIdleCallback !== 'undefined') this._idleH = requestIdleCallback(run, { timeout: 2000 });
+    else if (typeof setTimeout !== 'undefined') this._idleH = setTimeout(run, 0);
+    else run();
+  },
+  saveCharacterAsync(i, ch) { ch.lastPlayed = Date.now(); this._data.slots[i] = ch; this.persistIdle(); return true; },
   getSlot(i) { return this._data.slots[i]; },
   newCharacter(name, cls) {
     cls = CLASSES[cls] ? cls : 'warrior'; const c = CLASSES[cls]; const skills = {}; for (const id in SKILLDEFS) skills[id] = 0;

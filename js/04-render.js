@@ -145,7 +145,7 @@ const TOWN_GROUND_SET = 'greenwilds_forest_floor';        /* default town ground
 const TOWN_GROUND_BY_ID = { emberhold: 'ashlands_dark_rock', highreach: 'frostfen_snow' }; /* per-town overrides: each town gets its biome ring's ground (Emberhold->Ashlands rock, Highreach->Frostfen snow), not grass */
 const DUNGEON_FLOOR_SET = 'dungeon_floor_cobble', DUNGEON_WALL_SET = 'dungeon_wall_brick';
 const TEX_BASE = 'assets/textures/';
-const BASIS_PATH = 'https://unpkg.com/three@0.184.0/examples/jsm/libs/basis/'; /* basis_transcoder.js + .wasm, same CDN as the import map */
+const BASIS_PATH = 'vendor/three-0.184.0/examples/jsm/libs/basis/'; /* Phase 1: vendored locally (basis_transcoder.js + .wasm, three r184) — same-origin, offline-safe. Was a runtime unpkg CDN fetch that broke all KTX2 ground textures when the network was blocked (silent fallback to procedural ground). */
 let _ktx2 = null; const _groundTexCache = {}, _groundTexLoading = {};
 let _whiteTex = null, _flatNTex = null;
 function _whitePx() { if (_whiteTex) return _whiteTex; _whiteTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); _whiteTex.colorSpace = THREE.NoColorSpace; _whiteTex.needsUpdate = true; return _whiteTex; } /* neutral roughness(=1)/AO(=none) placeholder */
@@ -270,6 +270,7 @@ function _stepParticles() { if (!_particles) return; const cx = (typeof player !
 const hemi = new THREE.HemisphereLight(0x443322, 0x110a05, 0.55 * Math.PI); scene.add(hemi);
 const moon = new THREE.DirectionalLight(0x9fb6ff, 0.7 * Math.PI); moon.position.set(30, 60, 20); moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024); moon.shadow.bias = -0.0005;
 moon.shadow.camera.left = -70; moon.shadow.camera.right = 70; moon.shadow.camera.top = 70; moon.shadow.camera.bottom = -70; moon.shadow.camera.far = 180; scene.add(moon);
+let SHADOW_EVERY = 3; /* Phase 3: moon shadow-map refresh cadence in frames (loop() drives needsUpdate on _frame % SHADOW_EVERY). 1024² ortho over a fixed top-down scene with soft PCF hides the lower rate; 3 = ~20Hz refresh, ~33% fewer full shadow-pass geometry submissions than the old every-other-frame. Tune 2..4. */
 moon.shadow.autoUpdate = false; /* Phase 1b: relocated here from the renderer construction (WebGPURenderer.shadowMap has no autoUpdate; referencing moon at the renderer line would be a TDZ ReferenceError). LightShadow.autoUpdate defaults true, so this is mandatory or the 1024x1024 map recomputes every frame. needsUpdate is driven one-shot from applyGraphics/loop/menuLoop/bootstrap. */
 const torch = new THREE.PointLight(0xffb070, 1.6 * Math.PI, 66, 2); torch.position.set(0, 8, 0); scene.add(torch);
 /* Diablo-style player aura: a wide, gentle (low-decay) pool of light around the hero so dark zones read clearly
@@ -294,9 +295,10 @@ function unregLight(L) { if (!L) return; for (let i = PL_REG.length - 1; i >= 0;
    are pure data: their own .visible is forced false so they never render directly. Constant light set ⇒ compile once. */
 const _plSlots = [];
 function _ensureSlots() { while (_plSlots.length < PL_MAX) { const L = new THREE.PointLight(0xffffff, 0, 10, 2); L.userData.plSlot = true; scene.add(L); _plSlots.push(L); } while (_plSlots.length > PL_MAX) scene.remove(_plSlots.pop()); for (const L of _plSlots) L.visible = true; }
+const _plCands = []; /* Phase 1: reused candidate buffer (was `const cands = []` per run) — cullLights runs ~8×/sec (120ms cadence), so this is a minor GC saving bundled with the other scratch-reuse work. */
 function cullLights() {
   _ensureSlots();
-  const cands = [];
+  const cands = _plCands; cands.length = 0;
   for (const e of PL_REG) {
     const L = e.light; L.visible = false; if (L.intensity <= 0) continue;
     let vis = true, o = L.parent; while (o) { if (o.visible === false) { vis = false; break; } o = o.parent; }

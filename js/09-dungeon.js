@@ -51,11 +51,12 @@ function _dungGridAdd(col) { if (!dungeonLayout) return; const k = _dungCellKey(
 function _dungGridRemove(col) { if (!dungeonLayout) return; const arr = _dungColGrid.get(_dungCellKey(col.x, col.z)); if (!arr) return; const i = arr.indexOf(col); if (i >= 0) arr.splice(i, 1); }
 /* Returns the union of colliders in (x,z)'s cell + its 8 neighbors (3x3 ring). Falls back to the flat
    dungeonColliders array when there's no room grid (boss/arena floors have few colliders — no partitioning needed). */
+const _colliderScratch = []; /* Phase 1: module-scoped scratch reused by dungeonCollidersNear — callers (monster loop + moveToward) consume it synchronously via resolveCircles and never retain it, so one buffer is safe and kills ~31 throwaway arrays/frame in a full dungeon. */
 function dungeonCollidersNear(x, z) {
   const lay = dungeonLayout;
   if (!lay) return dungeonColliders;
   const ci = clamp(Math.floor((x + lay.half) / lay.cs), 0, lay.G - 1), cj = clamp(Math.floor((z + lay.half) / lay.cs), 0, lay.G - 1);
-  const out = [];
+  const out = _colliderScratch; out.length = 0;
   for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
     const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= lay.G || j >= lay.G) continue;
     const arr = _dungColGrid.get(i + ',' + j); if (arr) for (const c of arr) out.push(c);

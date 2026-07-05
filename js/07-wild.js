@@ -7,16 +7,9 @@ const _groundZ0 = new Float32Array(gpos.count); for (let i = 0; i < gpos.count; 
 let _groundFlat = null;
 function setGroundFlat(flat) { if (_groundFlat === flat) return; _groundFlat = flat; for (let i = 0; i < gpos.count; i++) gpos.setZ(i, flat ? 0 : _groundZ0[i]); gpos.needsUpdate = true; groundGeo.computeVertexNormals(); }
 groundGeo.setAttribute('uv1', groundGeo.attributes.uv); /* MeshStandardMaterial.aoMap samples a 2nd UV set (uv1); reuse the plane's uv */
-/* bake per-region biome tint into vertex colors (seamless ground biomes; multiplied by texGround when vertexColors on) */
-(() => {
-  const col = new Float32Array(gpos.count * 3), c = new THREE.Color(), tmp = new THREE.Color();
-  for (let i = 0; i < gpos.count; i++) {
-    const x = gpos.getX(i), y = gpos.getY(i); const r = regionAt(x, y); c.setHex(r.groundCol);
-    const r2 = regionAt(x * 1.05, y * 1.05); if (r2 !== r) { tmp.setHex(r2.groundCol); c.lerp(tmp, 0.5); }
-    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
-  }
-  groundGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-})();
+/* Phase 1: the per-region vertex-color tint bake was removed — groundMat.vertexColors is forced false at every
+   zone entry (04-render.js / 16-zones.js) so the baked `color` attribute (~176KB + ~29k regionAt calls at load)
+   was never sampled. Zone tint is applied via groundMat.color.setHex per zone instead. */
 /* Phase: PBR ground. MeshStandard so roughnessMap works AND the per-region HDRI lights the floor via IBL.
    All four map slots are populated from the start (white/flat placeholders for roughness/ao) so per-zone
    set swaps never change the node graph -> no pipeline recompile hitch at region boundaries (see the
@@ -57,8 +50,13 @@ function setAmbient(mode, col) {
   else if (mode === 'ember' || mode === 'rune') { _ambDir = 1; _ambSpd = 0.05; ambMat.size = 0.5; }
   else { _ambDir = 1; _ambSpd = 0.02; ambMat.size = 0.55; }
 }
+let _ambAcc = 0;
 function updateAmbient(dt) {
-  if (!ambient.visible) return; const p = ambPos, v = _ambDir * _ambSpd * dt;
+  /* Phase 1: advance + re-upload the ambient buffer on a ~66ms cadence instead of every frame. Only Y drifts,
+     so the full position re-upload was the cost; stepping by the accumulated dt keeps the total drift speed
+     identical, and 15Hz is visually indistinguishable for slow dust/embers. */
+  if (!ambient.visible) return; _ambAcc += dt; if (_ambAcc < 66) return; const step = _ambAcc; _ambAcc = 0;
+  const p = ambPos, v = _ambDir * _ambSpd * step;
   for (let i = 0; i < AMB; i++) { let y = p[i * 3 + 1] + v; if (y > 42) y -= 42; else if (y < 0) y += 42; p[i * 3 + 1] = y; }
   ambGeo.attributes.position.needsUpdate = true;
 }

@@ -6,7 +6,7 @@ function update(dt) {
     if (rmbDown && isCombat() && !player.stunned) { const hid = character.loadout[1], hd = SKILLDEFS[hid]; if (hd && hd.kind !== 'melee' && player.mp >= Math.round(hd.cost * resolveSkill(hid).costMult)) castActive(hid, { x: mouseWorld.x, z: mouseWorld.z }); }
     if (lmbDown) {
       const hm = isCombat() ? monsterAt() : null; if (hm) { target = hm; moveTarget = null; }
-      else if (Math.hypot(mouseWorld.x - player.x, mouseWorld.z - player.z) > 1.0) { moveTarget = { x: mouseWorld.x, z: mouseWorld.z }; target = null; } else { target = null; }
+      else if (Math.hypot(mouseWorld.x - player.x, mouseWorld.z - player.z) > 1.0) { _moveTgt.x = mouseWorld.x; _moveTgt.z = mouseWorld.z; moveTarget = _moveTgt; target = null; } else { target = null; }
     }
   }
   if (isCombat()) {
@@ -36,7 +36,7 @@ function update(dt) {
       else { if (d > m.r + player.r - 0.4) stepEnt(m, player.x, player.z, sp); else { m.atkCd -= fr; if (m.atkCd <= 0) { m.atkCd = 60; damagePlayer(m.dmg, m.elite, m.name); if (player.effects.thorns > 0) { m.hp -= player.effects.thorns; m.flash = 8; if (m.hp <= 0) killMonster(m); } } } }
     }
     resolveCircles(m, m.r, nearbyColliders(m.x, m.z), 1); { const dx = m.x - player.x, dz = m.z - player.z; let d = Math.hypot(dx, dz); const min = m.r + player.r; if (d < min && d > 0.0001) { m.x += dx / d * (min - d); m.z += dz / d * (min - d); } } clampEntToZone(m);
-    m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
+    m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer && _animActive(m.x, m.z)) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
   _compact(monsters, _deadFlag, null); // mesh cleanup already ran at kill/flee time (killMesh/removeMob); this just shrinks the array
 
@@ -56,7 +56,7 @@ function update(dt) {
     else if (e.mesh.material) { e.mesh.material.opacity = e.life / 14; }
   }
   _compact(fx, _deadLife0, _killMesh);
-  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
+  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
 
   for (const l of loots) {
     l.t += dt * 0.005; l.icon.position.y = 1 + Math.sin(l.t) * 0.25; l.icon.rotation.y += 0.04; if (l.ring) { l.ring.rotation.z += 0.02; const ps = 1 + Math.sin(l.t * 1.4) * 0.12; l.ring.scale.set(ps, ps, ps); } if (l.beam && l.tier >= 4) l.beam.material.opacity = 0.4 + Math.sin(l.t * 2) * 0.12; const _lpdx = l.x - player.x, _lpdz = l.z - player.z, _lpr = player.r + 1.4; if (_lpdx * _lpdx + _lpdz * _lpdz < _lpr * _lpr) {
@@ -78,7 +78,7 @@ function update(dt) {
   for (const f of activeFires) { f.light.intensity = f.base + Math.sin(T * 0.02 + f.x) * 1.26; f.flame.scale.y = 1 + Math.sin(T * 0.03 + f.z) * 0.15; f.flame.rotation.y += 0.03; } /* Phase 1a: flicker amplitude scaled by ~Math.PI (0.4->1.26); f.base already scales with the x-pi construction intensity. */
   for (const c of waypointMarks) { c.rotation.y += 0.03; c.position.y = 5.4 + Math.sin(T * 0.003) * 0.18; }
   if (zone === 'wild') { wpTown.ring.rotation.z += 0.02; wpCave.ring.rotation.z += 0.02; if (wpNext.group.visible) wpNext.ring.rotation.z += 0.02; if (wpPrev.group.visible) wpPrev.ring.rotation.z += 0.02; }
-  else if (zone === 'town') { t_wildPortal.ring.rotation.z += 0.02; for (const n of npcs) { n.group.userData.marker.rotation.y += 0.04; n.group.userData.marker.position.y = 4.6 + Math.sin(T * 0.004) * 0.2; if (n.group.userData.npcEnt) n.group.userData.npcEnt.userData.mixer.update(dt * 0.001); } for (const v of townVillagers) { if (v.userData.mixer) v.userData.mixer.update(dt * 0.001); } if (t_cauldron) { t_cauldron.marker.rotation.y += 0.05; t_cauldron.marker.position.y = 3.4 + Math.sin(T * 0.004) * 0.22; t_cauldron.brew.position.y = 2.02 + Math.sin(T * 0.008) * 0.05; } }
+  else if (zone === 'town') { t_wildPortal.ring.rotation.z += 0.02; for (const n of npcs) { n.group.userData.marker.rotation.y += 0.04; n.group.userData.marker.position.y = 4.6 + Math.sin(T * 0.004) * 0.2; if (n.group.userData.npcEnt && _animActive(n.group.position.x, n.group.position.z)) n.group.userData.npcEnt.userData.mixer.update(dt * 0.001); } for (const v of townVillagers) { if (v.userData.mixer && _animActive(v.position.x, v.position.z)) v.userData.mixer.update(dt * 0.001); } if (t_cauldron) { t_cauldron.marker.rotation.y += 0.05; t_cauldron.marker.position.y = 3.4 + Math.sin(T * 0.004) * 0.22; t_cauldron.brew.position.y = 2.02 + Math.sin(T * 0.008) * 0.05; } }
   else if (d_deeperPortal) { d_deeperPortal.ring.rotation.z += 0.02; if (d_cowExit && d_cowExit.group.visible) d_cowExit.ring.rotation.z += 0.02; }
   torch.position.set(player.x, 9, player.z); playerGlow.position.set(player.x, 14, player.z); updateAmbient(dt); if (typeof NET !== 'undefined') NET.tick(dt);
 
@@ -107,7 +107,7 @@ function update(dt) {
 let _floatAcc = 0, _uiAcc = 0, _plAcc = 0, _dbgOn = false, _bagFullAt = -9999;
 /* ---- Phase 0 perf rig: frame-time ring buffer + GPU-timestamp sampling. recordFrame() is a single typed-array
    write per frame (~free), so it always runs; GPU ms only sampled in perf mode (_tsSupported). ---- */
-let _gpuMs = 0, _tsSupported = false;
+let _gpuMs = 0, _tsSupported = false, _updMs = 0, _rndMs = 0;
 const _ftBuf = new Float32Array(240), _ftScratch = new Float32Array(240); let _ftIdx = 0, _ftCount = 0;
 function recordFrame(dt) { _ftBuf[_ftIdx] = dt; _ftIdx = (_ftIdx + 1) % _ftBuf.length; if (_ftCount < _ftBuf.length) _ftCount++; }
 function framePctl() {
@@ -120,7 +120,8 @@ function updateDebug() {
   if (!_dbgOn) return; const el = document.getElementById('dbg'); if (!el) return;
   const lights = _plVisN + 4; /* Phase 1: fixed always-on lights (hemi, moon, torch, playerGlow) + cullLights' tracked visible slot count — avoids a scene.traverse() every debug tick */
   const ft = framePctl(); /* Phase 0 rig: draws/tris come from _lastDraws/_lastTris captured post-render (ri.calls is a broken lifetime accumulator under WebGPU r184; live drawCalls reads 0 here because info resets before this runs) */
-  el.innerHTML = `FPS ${_fps.toFixed(0)}  gpu ${_tsSupported ? _gpuMs.toFixed(2) + 'ms' : (_perf ? '—' : 'off')}\nframe p50 ${ft.p50.toFixed(1)} p95 ${ft.p95.toFixed(1)} p99 ${ft.p99.toFixed(1)} max ${ft.max.toFixed(1)}ms\nzone ${zone}${zone === 'dungeon' ? ' d' + depth : ''}\ndraws ${_lastDraws}  tris ${(_lastTris / 1000).toFixed(1)}k\nmonsters ${monsters.length}  proj ${projectiles.length}\nloot ${loots.length}  fx ${fx.length}  floats ${floats.length}\nscene objs ${scene.children.length}  lights ${lights}\nremotes ${typeof NET !== 'undefined' ? NET.remotes.size : 0}` +
+  const heap = (typeof performance !== 'undefined' && performance.memory) ? (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + 'MB' : '—'; /* Phase 0 rig: JS heap where the browser exposes it (Chromium only). */
+  el.innerHTML = `FPS ${_fps.toFixed(0)}  gpu ${_tsSupported ? _gpuMs.toFixed(2) + 'ms' : (_perf ? '—' : 'off')}\nframe p50 ${ft.p50.toFixed(1)} p95 ${ft.p95.toFixed(1)} p99 ${ft.p99.toFixed(1)} max ${ft.max.toFixed(1)}ms\ncpu up ${_updMs.toFixed(1)} rnd ${_rndMs.toFixed(1)}ms  heap ${heap}\nzone ${zone}${zone === 'dungeon' ? ' d' + depth : ''}\ndraws ${_lastDraws}  tris ${(_lastTris / 1000).toFixed(1)}k\nmonsters ${monsters.length}  proj ${projectiles.length}\nloot ${loots.length}  fx ${fx.length}  floats ${floats.length}\nscene objs ${scene.children.length}  lights ${lights}\nremotes ${typeof NET !== 'undefined' ? NET.remotes.size : 0}` +
     (_errCount ? `\n<span class="err">errors ${_errCount}: ${escapeHtml(_lastErr).slice(0, 60)}</span>` : '');
 }
 function clampEntToZone(e) { if (zone === 'town') { const d = Math.hypot(e.x, e.z); if (d > TOWN_R) { e.x = e.x / d * TOWN_R; e.z = e.z / d * TOWN_R; } } else if (zone === 'dungeon') { if (e.x > DUNG_HALF) e.x = DUNG_HALF; else if (e.x < -DUNG_HALF) e.x = -DUNG_HALF; if (e.z > DUNG_HALF) e.z = DUNG_HALF; else if (e.z < -DUNG_HALF) e.z = -DUNG_HALF; } else { const d = Math.hypot(e.x, e.z); if (d > WILD_R) { e.x = e.x / d * WILD_R; e.z = e.z / d * WILD_R; } } }
@@ -132,6 +133,13 @@ function moveToward(tx, tz, dt) {
   clampEntToZone(player);
 }
 function stepEnt(e, tx, tz, sp) { const a = Math.atan2(tx - e.x, tz - e.z); e.x += Math.sin(a) * sp; e.z += Math.cos(a) * sp; clampEntToZone(e); }
+/* Phase 3: gate skeletal AnimationMixer.update by distance from the player. The camera is a fixed top-down
+   follow-cam centered on the player, so anything past ~75 world units is off-screen; freezing its skeleton
+   (and thus its skinned draw on the beauty + shadow passes) is invisible. Generous radius so nothing that
+   could be on-screen is ever gated — monsters cluster near the player (rarely gated); the real saving is the
+   spread-out town villagers/NPCs. mixer.update uses per-frame dt only, so a re-entering entity just resumes
+   (no accumulated-time jump). The hero is never gated (always on-screen). */
+function _animActive(x, z) { const dx = x - player.x, dz = z - player.z; return dx * dx + dz * dz < 5625; }
 /* Phase 1: hoisted out of the per-hit damagePlayer() body (was allocated on every hit that carried elite resist mods). */
 const RK = { fire: 'fireRes', frost: 'frostRes', lightning: 'lightningRes', poison: 'poisonRes' };
 function damagePlayer(d, mods, src) {
@@ -154,7 +162,7 @@ function saveProgress(showNote) {
     // showNote=true save or autosave tick. Thread success back via callback if that gap ever matters.
     clearTimeout(_saveDebounce);
     const slot = currentSlot, ch = character;
-    _saveDebounce = setTimeout(() => { _saveDebounce = null; SAVE.saveCharacter(slot, ch); }, 200);
+    _saveDebounce = setTimeout(() => { _saveDebounce = null; SAVE.saveCharacterAsync(slot, ch); }, 200); /* Phase 1: hot autosave path writes via the coalesced idle persist (off the frame path); unload/explicit saves stay synchronous. */
     return true;
   }
   const ok = SAVE.saveCharacter(currentSlot, character); flashSaved(ok); return ok;
