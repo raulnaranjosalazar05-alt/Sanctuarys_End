@@ -134,17 +134,44 @@ function _extractBuilding(scene, name) {
   node.traverse(o => { if (o.isMesh) { if (o.geometry) o.geometry.userData.sharedProto = true; const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m) m.userData = Object.assign(m.userData || {}, { sharedProto: true }); } });
   return { node, size, minY: bb.min.y };
 }
+/* Phase 4 (4.1, opt-in settings.lazyRoster, DEFAULT OFF): tiered roster loading. When on, only the boot roles
+   (hero + the 4 playable classes + town NPCs) are eager at boot; monster + boss GLBs are deferred and prefetched
+   during idle after the menu, or loaded on first spawn via ensureRole() (spawnMonster falls back to the procedural
+   mesh until the GLB arrives — no crash, just a brief lower-fidelity first appearance). Cuts ~11MB (monsters +
+   ~9 boss GLBs, most sessions never reach the depths that spawn them) off the eager boot download.
+   DEFAULT OFF because the spawn-before-proto timing needs browser validation (prefetch should beat the first
+   encounter); when off, loadRoster loads everything eagerly exactly as before. */
+const _BOOT_ROLES = new Set([...NPC_KINDS, 'hero', 'warrior', 'mage', 'rogue', 'barbarian']);
+const _roleLoading = new Set();
+if (typeof window !== 'undefined') Object.defineProperty(window, '__lazyRoster', { get: () => !!(SAVE._data.settings && SAVE._data.settings.lazyRoster), set: v => { SAVE._data.settings.lazyRoster = !!v; SAVE.persist(); console.log('[lazyRoster] ' + (v ? 'ON' : 'OFF') + ' — reload to apply (affects boot-time eager set)'); } });
+function ensureRole(role) {
+  if (GLB_PROTO[role] || _roleLoading.has(role) || !GLB_MANIFEST[role]) return;
+  if (!(window.THREE && THREE.GLTFLoader && THREE.SkeletonUtils)) return;
+  _roleLoading.add(role);
+  const m = GLB_MANIFEST[role];
+  new THREE.GLTFLoader().load(GLB_BASE + m.file,
+    gltf => {
+      const sc = gltf.scene, bb = new THREE.Box3().setFromObject(sc), sz = new THREE.Vector3(); bb.getSize(sz); const scale = (ROLE_HEIGHT[role] || 3) / (sz.y || 1);
+      GLB_PROTO[role] = { scene: sc, clips: RIG_ROLES.has(role) ? KAYKIT_RIG_CLIPS : (gltf.animations || []), scale, yOff: -bb.min.y * scale };
+      _roleLoading.delete(role);
+      if (role === 'hero' || role === curHeroRole()) swapHeroToGLB(); else if (NPC_KINDS.has(role)) swapNPCsToGLB(role);
+    },
+    undefined,
+    err => { console.warn('lazy glTF load fail: ' + role, err); _roleLoading.delete(role); }
+  );
+}
 function loadRoster() {
   if (!(window.THREE && THREE.GLTFLoader && THREE.SkeletonUtils)) { console.warn('glTF roster: GLTFLoader/SkeletonUtils missing -> procedural models'); return; }
   const loader = new THREE.GLTFLoader();
   function startModels() {
-    const roles = Object.keys(GLB_MANIFEST), propKeys = Object.keys(PROP_KIT_MANIFEST);
+    const _lazy = !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.lazyRoster);
+    const allRoles = Object.keys(GLB_MANIFEST); const roles = _lazy ? allRoles.filter(r => _BOOT_ROLES.has(r)) : allRoles; const propKeys = Object.keys(PROP_KIT_MANIFEST);
     const totalBytes = roles.reduce((a, r) => a + GLB_MANIFEST[r].bytes, 0) + propKeys.reduce((a, k) => a + PROP_KIT_MANIFEST[k].bytes, 0) + BUILDING_MANIFEST.bytes;
     const got = {}; let pending = roles.length + propKeys.length + 1, propPending = propKeys.length;
     const fill = document.getElementById('modelfill'), barBox = document.getElementById('modelload');
     if (barBox) barBox.style.display = 'block';
     function progress() { if (!fill) return; let sum = 0; for (const r in got) sum += got[r]; fill.style.width = Math.min(100, (sum / totalBytes) * 100).toFixed(1) + '%'; }
-    function done() { if (--pending <= 0) { GLB_READY = true; console.log('glTF roster loaded'); if (barBox) barBox.style.display = 'none'; rebuildZoneScenery(); } }
+    function done() { if (--pending <= 0) { GLB_READY = true; console.log('glTF roster loaded'); if (barBox) barBox.style.display = 'none'; rebuildZoneScenery(); if (_lazy) setTimeout(() => { for (const r of allRoles) if (!_BOOT_ROLES.has(r)) ensureRole(r); }, 1500); /* prefetch deferred monster/boss GLBs during idle after the menu shows */ } }
     for (const role of roles) {
       const m = GLB_MANIFEST[role];
       loader.load(GLB_BASE + m.file,

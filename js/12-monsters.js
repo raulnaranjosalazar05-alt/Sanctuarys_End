@@ -187,6 +187,7 @@ function spawnMonster(t, eliteMods, pos) {
   const base = MTYPES[t]; let x, z;
   if (pos) { x = pos.x; z = pos.z; } else { let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null; /* room-aware: spawn in the player's room or a door-neighbor so straight-line chase AI can actually reach them */ if (!p) { const ang = rand(0, Math.PI * 2), d = rand(40, 70); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); } x = p.x; z = p.z; }
   const sc = eliteMods ? base.scale * 1.4 : base.scale;
+  if (typeof ensureRole === 'function' && SAVE._data.settings.lazyRoster && !GLB_PROTO[t]) ensureRole(t); /* Phase 4 (4.1): kick a lazy GLB load on first spawn of this type; buildMonsterMesh uses the procedural fallback until it arrives */
   const mesh = buildMonsterMesh(t, base.col, sc); mesh.position.set(x, 0, z); scene.add(mesh);
   let hpM = curScale.hp, dmgM = curScale.dmg, xpM = curScale.xp, speedMult = 1, name = base.name;
   // clone the archetype's resist map so per-instance depth scaling never mutates MTYPES (shared-ref trap)
