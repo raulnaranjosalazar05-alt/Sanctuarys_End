@@ -216,8 +216,16 @@ function buildWild(region) {
 function rebuildZoneScenery() {
   if (typeof zone === 'undefined') return;
   _menuShadowDirty = true; /* scenery changed — the menu's otherwise-static shadow map needs one refresh */
-  try { if (zone === 'town') buildTown(curTownArea); else if (zone === 'wild') buildWild(curRegion); }
-  catch (e) { console.warn('zone scenery rebuild failed:', e && e.message); }
+  const build = () => { try { if (zone === 'town') buildTown(curTownArea); else if (zone === 'wild') buildWild(curRegion); } catch (e) { console.warn('zone scenery rebuild failed:', e && e.message); } };
+  /* Assets (roster/props/buildings/cobble) can finish while standing in a zone; a live rebuild swaps in the real
+     materials which then first-compile on the next draw → a mid-play hitch. In-game, run the rebuild behind the
+     loading curtain so warmScene compiles the new materials before reveal. On the title screen (no running loop)
+     rebuild live — there's no gameplay to stutter and warmScene's placeCamera reveal shouldn't touch the menu. If
+     a zone-entry warm is already in flight (_warming), rebuild live (sub-2-frame window, negligible). */
+  if (typeof running !== 'undefined' && running && !_warming) {
+    const label = zone === 'town' ? ((curTownArea && curTownArea.name) || 'Town') + ' · Town' : ((curRegion && curRegion.name) || 'The Wilds') + ' · Lv ' + ((curRegion && curRegion.lvl) || 1);
+    warmScene(label, build);
+  } else build();
 }
 
 /* ---- TOWN scenery ---- */

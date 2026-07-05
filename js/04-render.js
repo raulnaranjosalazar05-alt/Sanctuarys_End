@@ -199,7 +199,7 @@ let _cobbleBase = null, _cobbleLoading = false;
 function ensureCobble() {
   if (_cobbleBase || _cobbleLoading || !groundTexOn() || !_getKTX2()) return;
   _cobbleLoading = true;
-  loadGroundSet(DUNGEON_FLOOR_SET, 64, 64).then(b => { _cobbleBase = b; _cobbleLoading = false; if (typeof zone !== 'undefined' && zone === 'town') { try { buildTown(curTownArea); } catch (e) { console.warn('town cobble rebuild failed:', e && e.message); } } }).catch(e => { _cobbleLoading = false; console.warn('cobble load fail:', e && e.message); });
+  loadGroundSet(DUNGEON_FLOOR_SET, 64, 64).then(b => { _cobbleBase = b; _cobbleLoading = false; if (typeof zone !== 'undefined' && zone === 'town') rebuildZoneScenery(); /* gates the re-skin behind the curtain when in-game (see rebuildZoneScenery) */ }).catch(e => { _cobbleLoading = false; console.warn('cobble load fail:', e && e.message); });
 }
 /* Cache cobble albedo clones by tiling. Every buildTown used to clone _cobbleBase.map afresh per road/plaza,
    and disposeObj disposes materials but not their textures — so each town entry leaked a batch of GPU

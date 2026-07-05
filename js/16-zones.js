@@ -59,7 +59,13 @@ function warmCombatPipelines() {
   if (!isCombat()) return [];
   const tmp = [], px = player.x, pz = player.z;
   const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, y == null ? 1.5 : y, pz); m.frustumCulled = false; m.userData.noDispose = true; scene.add(m); tmp.push(m); return m; };
-  for (const t of new Set(biomePool())) { const b = MTYPES[t]; if (!b) continue; const mesh = buildMonsterMesh(t, b.col, b.scale); if (mesh) { mesh.position.set(px, 0, pz); mesh.frustumCulled = false; scene.add(mesh); tmp.push(mesh); } } /* skinned MeshStandard, one per spawnable type */
+  const warmTypes = new Set(biomePool());
+  /* bosses summon types outside the floor's biome pool (e.g. Zul'Mak → imp/hellhound) — an un-warmed summon
+     first-renders AFTER reveal, compiling its pipeline mid-fight. Fold the active boss's summon/addphase types
+     into the warm set. _warmedCtx still gates to once per context, but WebGPU caches each pipeline globally after
+     its first compile, so this covers the first boss met in a fresh context (the common case). */
+  if (bossActive && boss && boss.abilities) for (const ab of boss.abilities) if ((ab.kind === 'summon' || ab.kind === 'addphase') && ab.types) for (const t of ab.types) warmTypes.add(t);
+  for (const t of warmTypes) { const b = MTYPES[t]; if (!b) continue; const mesh = buildMonsterMesh(t, b.col, b.scale); if (mesh) { mesh.position.set(px, 0, pz); mesh.frustumCulled = false; scene.add(mesh); tmp.push(mesh); } } /* skinned MeshStandard, one per spawnable type */
   add(_orbGeo, projMat(0xff8a3a), 2);                                  /* projectile orb (opaque MeshBasic) */
   add(_LGEO.spark, _basicMat(0xffffff, 0.95));                          /* additive-transparent VFX, one per distinct geo layout */
   add(_LGEO.flash, _basicMat(0xffffff, 0.7));
@@ -73,19 +79,21 @@ function warmCombatPipelines() {
   return tmp;
 }
 let _warming = false, _warmToken = 0;
-function warmScene(label) {
+function warmScene(label, buildFn) {
   const el = document.getElementById('loading');
   const tok = ++_warmToken;
   _warming = true;
   if (el) { el.textContent = label || 'Summoning the world…'; el.style.display = ''; }
   setTimeout(() => { if (tok === _warmToken && _warming) { console.warn('warmScene watchdog: forcing reveal'); _warming = false; if (el) el.style.display = 'none'; last = now(); } }, 8000);
-  /* yield two frames so the overlay actually paints before the (potentially blocking) warm render begins */
+  /* yield two frames so the opaque overlay actually paints before the (blocking) build+warm render begins */
   requestAnimationFrame(() => requestAnimationFrame(async () => {
     if (tok !== _warmToken) return;
-    const _ckey = isCombat() ? _combatCtxKey() : null;
-    const _skipWarm = typeof window !== 'undefined' && window.__skipCombatWarm; /* perf A/B: disable the combat warm to measure the un-warmed first-combat hitch (unset in normal play) */
-    const _warmMobs = (_ckey && !_warmedCtx.has(_ckey) && !_skipWarm) ? warmCombatPipelines() : [];  /* combat content, gated once per context */
+    let _warmMobs = [];  /* declared out here so the finally can drop them even if the build/warm throws */
     try {
+      if (buildFn) { buildFn(); placeCamera(player); }  /* build runs HERE — behind the now-painted opaque curtain (was run before warmScene, freezing a visible frame). Place the camera before the warm render so the revealed frame draws from the correct camera, not the previous zone's. */
+      const _ckey = isCombat() ? _combatCtxKey() : null;   /* computed AFTER build — needs curTheme/curRegion set */
+      const _skipWarm = typeof window !== 'undefined' && window.__skipCombatWarm; /* perf A/B: disable the combat warm to measure the un-warmed first-combat hitch (unset in normal play) */
+      _warmMobs = (_ckey && !_warmedCtx.has(_ckey) && !_skipWarm) ? warmCombatPipelines() : [];  /* combat content, gated once per context */
       if (renderer.shadowMap.enabled) moon.shadow.needsUpdate = true;
       await renderer.compileAsync(scene, camera); /* off-main-thread warm of modules/pipelines; overlay stays live */
       renderFrame();                              /* sync: finalize the exact active (post) variant behind the gate */
@@ -100,21 +108,25 @@ function warmScene(label) {
   }));
 }
 function enterTown(area) {
-  curTownArea = area || curTownArea || AREAS[0]; zone = 'town'; depth = 0; clearField(); invalidateTownInter(); buildTown(curTownArea); setZoneVisuals(); themeTown(curTownArea); setScale();
-  for (const n of npcs) { n.group.visible = (!n.towns || n.towns.includes(curTownArea.id)); } player.x = 0; player.z = 8; player.hp = player.hpMax; refreshVendor(); zoneTxt.textContent = curTownArea.name + ' · Town'; townBtn.style.display = 'none'; placeCamera(player); saveProgress(false);
-  warmScene(curTownArea.name + ' · Town');
+  curTownArea = area || curTownArea || AREAS[0]; zone = 'town'; depth = 0;   /* cheap identity state, set sync for the label + isCombat(); the heavy build runs inside warmScene, behind the curtain */
+  warmScene(curTownArea.name + ' · Town', () => {
+    clearField(); invalidateTownInter(); buildTown(curTownArea); setZoneVisuals(); themeTown(curTownArea); setScale();
+    for (const n of npcs) { n.group.visible = (!n.towns || n.towns.includes(curTownArea.id)); } player.x = 0; player.z = 8; player.hp = player.hpMax; refreshVendor(); zoneTxt.textContent = curTownArea.name + ' · Town'; townBtn.style.display = 'none'; saveProgress(false);
+  }); /* placeCamera handled by warmScene's reveal */
 }
 function enterWild(regionId, spawn) {
   curArea = AREAS.find(a => a.id === 'wilds'); const r = (regionId && wildById(regionId)) || curRegion || REGIONS[0];
-  curRegion = r; zone = 'wild'; depth = 0; clearField(); invalidateWildInter(); buildWild(r);
-  player.x = (spawn && spawn.x != null) ? spawn.x : WILD_SPAWN.x; player.z = (spawn && spawn.z != null) ? spawn.z : WILD_SPAWN.z;
-  setZoneVisuals(); themeWild(); setScale(); waveTimer = 0;
-  if (r.town) markDiscovered(r.town);   // reaching a biome reveals its adjoining town on the map
-  zoneTxt.textContent = r.name + ' · Lv ' + r.lvl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg(r.name); saveProgress(false);
-  wildObj = rollWildObjective(r.lvl);
-  if (wildObj.kind === 'stalker') { const c = spawnChampion(0); if (c) { c.name = 'The Stalker of ' + r.name; setTimeout(() => showMsg('Something hunts you through ' + r.name + '…'), 1200); } else wildObj = null; }
-  renderObjective();
-  warmScene(r.name + ' · Lv ' + r.lvl);
+  curRegion = r; zone = 'wild'; depth = 0;   /* identity state sync — label uses r.name; the build runs inside warmScene, behind the curtain */
+  warmScene(r.name + ' · Lv ' + r.lvl, () => {
+    clearField(); invalidateWildInter(); buildWild(r);
+    player.x = (spawn && spawn.x != null) ? spawn.x : WILD_SPAWN.x; player.z = (spawn && spawn.z != null) ? spawn.z : WILD_SPAWN.z;
+    setZoneVisuals(); themeWild(); setScale(); waveTimer = 0;
+    if (r.town) markDiscovered(r.town);   // reaching a biome reveals its adjoining town on the map
+    zoneTxt.textContent = r.name + ' · Lv ' + r.lvl; townBtn.style.display = 'inline-block'; showMsg(r.name); saveProgress(false);
+    wildObj = rollWildObjective(r.lvl);
+    if (wildObj.kind === 'stalker') { const c = spawnChampion(0); if (c) { c.name = 'The Stalker of ' + r.name; setTimeout(() => showMsg('Something hunts you through ' + r.name + '…'), 1200); } else wildObj = null; }
+    renderObjective();
+  }); /* placeCamera handled by warmScene's reveal */
 }
 function payWildBounty() {
   let best = rollItem(curScale.ilvl + 2, null, 0.22); for (let k = 0; k < 2; k++) { const c = rollItem(curScale.ilvl + 2, null, 0.22); if (itemScore(c) > itemScore(best)) best = c; }
@@ -199,20 +211,23 @@ function renderObjective() {
   if (s !== _objTxt._s) { _objTxt._s = s; _objTxt.textContent = s; _objTxt.style.display = s ? 'block' : 'none'; }
 }
 function enterDungeon(d) {
-  zone = 'dungeon'; depth = d; invalidateDungeonInter(); if (d > character.maxDepth && d !== COW_DEPTH) { character.maxDepth = d; } /* the cow level never counts as a depth checkpoint (keeps it out of waypoints) */ _ev('depth'); buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; const _dl = d === COW_DEPTH ? '???' : 'Depth ' + d; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl; townBtn.style.display = 'inline-block'; placeCamera(player); showMsg((curTheme ? curTheme.name + ' · ' : '') + _dl);
-  if (depth === COW_DEPTH) {
-    floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; if (d_cowExit) d_cowExit.group.visible = false;
-    spawnCowKing(); bossActive = true;
-    /* pre-spawn the herd directly: the _spawnQueue drain is gated on !bossActive, and spawning before warmScene keeps first-frame pipeline compile behind the loading gate */
-    for (let i = 0; i < 22; i++) { const a = rand(0, 6.28), dd = rand(14, DUNG_HALF - 12); spawnMonster('cow', null, { x: Math.cos(a) * dd, z: Math.sin(a) * dd }); }
-    setTimeout(() => showMsg('The herd stirs… Moo.'), 900);
-  }
-  else if (depth === 666) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnDevil(depth); bossActive = true; setTimeout(() => showMsg('The Devil of the Inferno bars the way…'), 900); }
-  else if (depth % 5 === 0) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnBoss(depth); bossActive = true; setTimeout(() => showMsg('A guardian blocks the way down…'), 900); }
-  else { if (d_deeperPortal) d_deeperPortal.group.visible = true; floorObj = rollFloorObjective(depth); if (floorObj && floorObj.kind === 'champion') { spawnChampion(depth); setTimeout(() => showMsg('A Champion stalks this floor…'), 900); } }
-  placeShrines(); placeChest(); renderObjective();
-  saveProgress(false);
-  warmScene((curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl);
+  zone = 'dungeon'; depth = d; invalidateDungeonInter(); if (d > character.maxDepth && d !== COW_DEPTH) { character.maxDepth = d; } /* the cow level never counts as a depth checkpoint (keeps it out of waypoints) */ _ev('depth');
+  const _dl = d === COW_DEPTH ? '???' : 'Depth ' + d;   /* depth-only curtain label — curTheme isn't known until buildDungeon runs inside the buildFn */
+  warmScene(_dl, () => {
+    buildDungeon(d); clearField(); setZoneVisuals(); setScale(); player.x = 0; player.z = 0; waveTimer = 0; zoneTxt.textContent = (curTheme ? curTheme.name : 'Dungeon') + ' — ' + _dl; townBtn.style.display = 'inline-block'; showMsg((curTheme ? curTheme.name + ' · ' : '') + _dl);
+    if (depth === COW_DEPTH) {
+      floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; if (d_cowExit) d_cowExit.group.visible = false;
+      spawnCowKing(); bossActive = true;
+      /* pre-spawn the herd directly (the _spawnQueue drain is gated on !bossActive); inside buildFn so the first-frame pipeline compile stays behind the loading gate */
+      for (let i = 0; i < 22; i++) { const a = rand(0, 6.28), dd = rand(14, DUNG_HALF - 12); spawnMonster('cow', null, { x: Math.cos(a) * dd, z: Math.sin(a) * dd }); }
+      setTimeout(() => showMsg('The herd stirs… Moo.'), 900);
+    }
+    else if (depth === 666) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnDevil(depth); bossActive = true; setTimeout(() => showMsg('The Devil of the Inferno bars the way…'), 900); }
+    else if (depth % 5 === 0) { floorObj = null; if (d_deeperPortal) d_deeperPortal.group.visible = false; spawnBoss(depth); bossActive = true; setTimeout(() => showMsg('A guardian blocks the way down…'), 900); }
+    else { if (d_deeperPortal) d_deeperPortal.group.visible = true; floorObj = rollFloorObjective(depth); if (floorObj && floorObj.kind === 'champion') { spawnChampion(depth); setTimeout(() => showMsg('A Champion stalks this floor…'), 900); } }
+    placeShrines(); placeChest(); renderObjective();
+    saveProgress(false);
+  }); /* placeCamera handled by warmScene's reveal */
 }
 
 /* ---------- interaction ---------- */

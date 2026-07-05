@@ -88,7 +88,7 @@
   .btn:hover{background:var(--accent-hover);box-shadow:0 0 14px var(--border-lit);}
   .btn.small{padding:8px 20px;font-size:14px;margin-top:6px;}
   .hint{color:#6a5a44;font-size:12px;margin-top:18px;max-width:480px;text-align:center;line-height:1.7;}
-  #loading{color:#9a8a6a;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;font-size:18px;}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;color:#9a8a6a;font-size:18px;background:#0a0805;}
   #modelload{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:31;text-align:center;color:#9a8a6a;font:11px monospace;display:none;pointer-events:none;}
   #modelload .bar{width:240px;height:5px;margin-top:4px;background:rgba(0,0,0,.55);border:1px solid #2a2418;border-radius:3px;overflow:hidden;}
   #modelfill{display:block;height:100%;width:0;background:#9a8a6a;transition:width .15s;}
