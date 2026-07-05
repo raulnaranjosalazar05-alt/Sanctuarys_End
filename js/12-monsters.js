@@ -3,7 +3,7 @@ let monsters = [], projectiles = [], loots = [], floats = [], fx = []; let targe
    AND a fresh closure every frame for projectiles/fx/loots/floats. Predicate/killer are module-level
    singletons (no per-frame closure alloc); arr.length=w truncates in place (no realloc). Order-preserving. */
 function _compact(arr, dead, kill) { let w = 0; for (let i = 0; i < arr.length; i++) { const it = arr[i]; if (dead(it)) { if (kill) kill(it); } else arr[w++] = it; } arr.length = w; }
-const _deadLife0 = o => o.life <= 0, _deadFlag = o => o.dead, _killMesh = o => removeMesh(o.mesh);
+const _deadLife0 = o => o.life <= 0, _deadFlag = o => o.dead, _deadDur = s => s.dur <= 0, _killMesh = o => removeMesh(o.mesh);
 /* Monster types. Optional onAI(m, d, fr) gives a type its signature move — dispatched each un-stunned frame
    from the monster loop (17-update); the base chase/kite/melee behavior still runs after it. All specials
    telegraph before they land (spawnTelegraph, 15-combat) so they can be dodged. */

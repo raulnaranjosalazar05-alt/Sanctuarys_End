@@ -89,6 +89,8 @@ function postOn() { return SAVE._data.settings.postfx !== false && !!post; } /* 
 /* markGlows: under the 1a path (composer + OutputPass) the whole image was tone-mapped uniformly, so toneMapped=false was already effectively a no-op for additive glows; renderOutput() does the same uniform tone map -> keep as a harmless carryover that matches 1a (no per-material skip engineered, which would diverge from baseline). */
 function markGlows() { scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { if (m && m.isMeshBasicMaterial) m.toneMapped = false; }); } }); }
 function applyPostFX() { const s = SAVE._data.settings; const on = SAVE._data.settings.postfx !== false; renderer.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping; /* renderOutput() reads this; off-path keeps NoToneMapping for the plain-render branch. */ renderer.toneMappingExposure = (s.exposure != null ? s.exposure : 1.0) * MANAGED_EXPO; /* Phase 2: user exposure setting (slider, default 1.0) x managed-color base compensation. */ if (bloomPass && bloomPass.strength) bloomPass.strength.value = (s.bloom != null ? s.bloom : 0.9); markGlows(); scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { if (m) m.needsUpdate = true; }); } }); }
+/* Phase 2 perf: cheap live-uniform-only twin of applyPostFX(), for continuous slider drag (bloom/exposure). No markGlows(), no scene.traverse -> no per-tick material recompile. */
+function applyPostFXLive() { const s = SAVE._data.settings; renderer.toneMappingExposure = (s.exposure != null ? s.exposure : 1.0) * MANAGED_EXPO; if (bloomPass && bloomPass.strength) bloomPass.strength.value = (s.bloom != null ? s.bloom : 0.9); }
 let _lastDraws = 0, _lastTris = 0;
 function renderFrame() {
   _stepParticles(); /* Phase 5: advance the GPU ambient field (no-op unless built) before the render reads its buffer. */
@@ -197,7 +199,7 @@ let _cobbleBase = null, _cobbleLoading = false;
 function ensureCobble() {
   if (_cobbleBase || _cobbleLoading || !groundTexOn() || !_getKTX2()) return;
   _cobbleLoading = true;
-  loadGroundSet(DUNGEON_FLOOR_SET, 64, 64).then(b => { _cobbleBase = b; _cobbleLoading = false; if (typeof zone !== 'undefined' && zone === 'town') { try { buildTown(curTownArea); } catch (e) { console.warn('town cobble rebuild failed:', e && e.message); } } }).catch(e => { _cobbleLoading = false; console.warn('cobble load fail:', e && e.message); });
+  loadGroundSet(DUNGEON_FLOOR_SET, 64, 64).then(b => { _cobbleBase = b; _cobbleLoading = false; if (typeof zone !== 'undefined' && zone === 'town') rebuildZoneScenery(); /* gates the re-skin behind the curtain when in-game (see rebuildZoneScenery) */ }).catch(e => { _cobbleLoading = false; console.warn('cobble load fail:', e && e.message); });
 }
 /* Cache cobble albedo clones by tiling. Every buildTown used to clone _cobbleBase.map afresh per road/plaza,
    and disposeObj disposes materials but not their textures — so each town entry leaked a batch of GPU

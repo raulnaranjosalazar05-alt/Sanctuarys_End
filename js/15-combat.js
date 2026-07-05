@@ -9,22 +9,22 @@ function castActive(id, aim, isEcho) {
   else if (def.kind === 'chain') castChain(rank, skM, R);
   else if (def.kind === 'multishot') { const n = 3 + R.addProj; for (let k = 0; k < n; k++) { const a = ang + (k - (n - 1) / 2) * 0.18; applyRuneProj(spawnProj(player.x, player.z, { x: Math.sin(a), z: Math.cos(a) }, 1.0, player.dmg * cf * mm, 'poison', 120, def.onHit), R); } }
   else if (def.kind === 'volley') { const n = 5 + R.addProj; for (let k = 0; k < n; k++) { const a = ang + (k - (n - 1) / 2) * 0.16; applyRuneProj(spawnProj(player.x, player.z, { x: Math.sin(a), z: Math.cos(a) }, 1.0, player.dmg * cf * mm, 'phys', 120, def.onHit), R); } }
-  else if (def.kind === 'cleave') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 6 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.2) meleeDamage(m, cf * skM, player); } } }
-  else if (def.kind === 'whirl') { for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 7 + R.addRadius) meleeDamage(m, cf * skM, player); } }
-  else if (def.kind === 'leap') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 16); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0xc4a050); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 6 + R.addRadius) meleeDamage(m, cf * skM, player); } }
+  else if (def.kind === 'cleave') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 6 + R.addRadius; if (dx * dx + dz * dz < r * r) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.2) meleeDamage(m, cf * skM, player); } } }
+  else if (def.kind === 'whirl') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 7 + R.addRadius; if (dx * dx + dz * dz < r * r) meleeDamage(m, cf * skM, player); } }
+  else if (def.kind === 'leap') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 16); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0xc4a050); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 6 + R.addRadius; if (dx * dx + dz * dz < r * r) meleeDamage(m, cf * skM, player); } }
   else if (def.kind === 'blink') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 22); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0x6a8aff); }
-  else if (def.kind === 'meteor') { spawnExplosion(aim.x, aim.z, 0xff5020); for (const m of [...monsters]) { if (Math.hypot(m.x - aim.x, m.z - aim.z) < 7 + R.addRadius) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'fire'); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, dd); } } }
-  else if (def.kind === 'frostnova') { spawnExplosion(player.x, player.z, 0x6ad8ff); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 9 + R.addRadius) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'frost'); if (m.hp > 0) { m.slow = 120 + 30 * rank + R.addSlow; if (def.onHit) applyOnHit(m, def.onHit, dd); } } } }
-  else if (def.kind === 'groundslam') { spawnExplosion(player.x + fwd.x * 3, player.z + fwd.z * 3, 0xc4a050); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 8 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.0) { meleeDamage(m, cf * skM, player); if (m.hp > 0) { m.slow = Math.max(m.slow, 120); const kb = Math.min(4, 9 - d); m.x += Math.sin(ma) * kb; m.z += Math.cos(ma) * kb; if (def.onHit) applyOnHit(m, def.onHit, 0); } } } } }
-  else if (def.kind === 'charge') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 20); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0xd8c060); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 5 + R.addRadius) { meleeDamage(m, cf * skM, player); m.slow = Math.max(m.slow, 90); } } }
+  else if (def.kind === 'meteor') { spawnExplosion(aim.x, aim.z, 0xff5020); for (const m of [...monsters]) { const dx = m.x - aim.x, dz = m.z - aim.z, r = 7 + R.addRadius; if (dx * dx + dz * dz < r * r) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'fire'); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, dd); } } }
+  else if (def.kind === 'frostnova') { spawnExplosion(player.x, player.z, 0x6ad8ff); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 9 + R.addRadius; if (dx * dx + dz * dz < r * r) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'frost'); if (m.hp > 0) { m.slow = 120 + 30 * rank + R.addSlow; if (def.onHit) applyOnHit(m, def.onHit, dd); } } } }
+  else if (def.kind === 'groundslam') { spawnExplosion(player.x + fwd.x * 3, player.z + fwd.z * 3, 0xc4a050); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 8 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.0) { meleeDamage(m, cf * skM, player); if (m.hp > 0) { m.slow = Math.max(m.slow, 120); const kb = Math.min(4, 9 - d); m.x += Math.sin(ma) * kb; m.z += Math.cos(ma) * kb; if (def.onHit) applyOnHit(m, def.onHit, 0); } } } } } /* ponytail: d (the sqrt'd distance) is reused for knockback (9-d) below — left as Math.hypot, not a pure boolean check like its siblings */
+  else if (def.kind === 'charge') { const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 20); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); spawnExplosion(player.x, player.z, 0xd8c060); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 5 + R.addRadius; if (dx * dx + dz * dz < r * r) { meleeDamage(m, cf * skM, player); m.slow = Math.max(m.slow, 90); } } }
   else if (def.kind === 'warcry') { player.buffs.cryUntil = now() + 8000 + R.addDuration; player.buffs.cryMul = 1.2 + 0.06 * rank; player.buffs.cryDR = Math.min(0.4, 0.1 + 0.04 * rank); spawnExplosion(player.x, player.z, 0xffcf3a); floatText('War Cry!', player.x, player.z - 1, '#ffcf3a'); }
   else if (def.kind === 'arcaneorb') { const p = spawnProj(player.x, player.z, fwd, 0.45, player.dmg * cf * sm, 'fire'); p.pierce = 3; if (!p.hit) p.hit = new Set(); p.slow = 60; p.mesh.scale.setScalar(0.85); applyRuneProj(p, R); }
   else if (def.kind === 'blizzard') { const cx = aim.x, cz = aim.z, reps = 4 + rank + R.addHits, oh = def.onHit, ep = _fieldEpoch; for (let i = 0; i < reps; i++) { setTimeout(() => { if (_fieldEpoch !== ep || !running || !isCombat()) return; const ox = cx + rand(-5, 5), oz = cz + rand(-5, 5); spawnExplosion(ox, oz, 0x6ad8ff); for (const m of [...monsters]) { if (Math.hypot(m.x - ox, m.z - oz) < 5 + R.addRadius) { const dd = player.dmg * cf * sm; hitMonsterProj(m, dd, 'frost'); if (m.hp > 0) { m.slow = Math.max(m.slow, 120); if (oh) applyOnHit(m, oh, dd); } } } }, i * 220); } }
-  else if (def.kind === 'teleportstorm') { const blast = () => { spawnExplosion(player.x, player.z, 0x9f6aff); for (const m of [...monsters]) { if (Math.hypot(m.x - player.x, m.z - player.z) < 6 + R.addRadius) hitMonsterProj(m, player.dmg * cf * sm, 'lightning'); } }; blast(); const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 22); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); blast(); }
+  else if (def.kind === 'teleportstorm') { const blast = () => { spawnExplosion(player.x, player.z, 0x9f6aff); for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 6 + R.addRadius; if (dx * dx + dz * dz < r * r) hitMonsterProj(m, player.dmg * cf * sm, 'lightning'); } }; blast(); const dd = Math.min(Math.hypot(aim.x - player.x, aim.z - player.z), 22); player.x += Math.sin(ang) * dd; player.z += Math.cos(ang) * dd; clampToZone(); blast(); }
   else if (def.kind === 'shadowstep') { let best = null, bd = 1e9; for (const m of monsters) { const d = Math.hypot(m.x - player.x, m.z - player.z); if (d < bd) { bd = d; best = m; } } if (best) { const ba = Math.atan2(best.x - player.x, best.z - player.z); player.x = best.x - Math.sin(ba) * 2.2; player.z = best.z - Math.cos(ba) * 2.2; clampToZone(); player.dir = ba; spawnExplosion(player.x, player.z, 0x6a3a8a); const dmg = player.dmg * player.meleeMult * skM * cf * (player.effects.critdmg ? 3 : 2); best.hp -= dmg; best.flash = 8; floatText('✸' + Math.round(dmg), best.x, best.z, '#ffd24d'); if (player.effects.lifesteal > 0) player.hp = Math.min(player.hpMax, player.hp + dmg * player.effects.lifesteal); if (best.hp <= 0) killMonster(best); } else floatText('No target', player.x, player.z, '#aaa'); }
   else if (def.kind === 'fanofknives') { const cnt = 10 + 2 * rank + R.addProj; for (let k = 0; k < cnt; k++) { const a = k / cnt * Math.PI * 2; applyRuneProj(spawnProj(player.x, player.z, { x: Math.sin(a), z: Math.cos(a) }, 1.0, player.dmg * cf * mm, 'phys', 120, def.onHit), R); } }
   else if (def.kind === 'secondwind') { const m0 = player.mp; player.mp = 0; const heal = Math.round(m0 * (0.6 + 0.12 * rank)); player.hp = Math.min(player.hpMax, player.hp + heal); floatText('+' + heal, player.x, player.z, '#7fd07f'); spawnExplosion(player.x, player.z, 0x6ad88a); updateGlobes(); }
-  else if (def.kind === 'rend') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, d = Math.hypot(dx, dz); if (d < 6.5 + R.addRadius) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.1) { meleeDamage(m, cf * skM, player); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, player.dmg * cf * skM); } } } }
+  else if (def.kind === 'rend') { for (const m of [...monsters]) { const dx = m.x - player.x, dz = m.z - player.z, r = 6.5 + R.addRadius; if (dx * dx + dz * dz < r * r) { const ma = Math.atan2(dx, dz); const da = Math.abs(Math.atan2(Math.sin(ma - ang), Math.cos(ma - ang))); if (da < 1.1) { meleeDamage(m, cf * skM, player); if (m.hp > 0 && def.onHit) applyOnHit(m, def.onHit, player.dmg * cf * skM); } } } }
   else if (def.kind === 'frenzy') { player.buffs.frenzyUntil = now() + 8000 + R.addDuration; player.buffs.frenzyMul = Math.max(0.5, 0.8 - 0.05 * rank); spawnExplosion(player.x, player.z, 0xff5040); floatText('Frenzy!', player.x, player.z - 1, '#ff8a6a'); }
   else if (def.kind === 'shockwave') { const p = spawnProj(player.x, player.z, fwd, 0.55, player.dmg * cf * mm, 'phys', 90, def.onHit); p.pierce = 999; if (!p.hit) p.hit = new Set(); p.knockback = true; p.mesh.scale.set(2.2, 0.6, 2.2); applyRuneProj(p, R); }
   if (!isEcho && player.effects.echo && SPELLKINDS.has(def.kind)) setTimeout(() => castActive(id, aim, true), 90);
@@ -76,8 +76,8 @@ const _explMatC = {}; function spawnExplosion(x, z, col) { const mat = _explMatC
 const hazards = [], telegraphs = [], tempWalls = [];
 function spawnTelegraph(x, z, r, ms, col, cb) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.55)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.22, z); m.scale.setScalar(r * 0.3); scene.add(m); telegraphs.push({ x, z, r, t: ms, t0: ms, mesh: m, cb }); }
 function spawnHazard(x, z, r, life, dps, col, src) { const m = poolMesh(_LGEO.ring, _basicMat(col, 0.4)); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.2, z); m.scale.setScalar(r * 0.85); scene.add(m); hazards.push({ x, z, r, life, dps, tk: 0, mesh: m, src: src || 'burning ground' }); }
-function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); tempWalls.push({ col, life, mesh: m }); }
-function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); return; } } }
+function spawnWallSeg(x, z, life) { const m = poolMesh(_LGEO.wall, _basicMat(0xc08aff, 0.45)); m.position.set(x, 1.1, z); scene.add(m); const col = { x, z, r: 1.3 }; activeColliders().push(col); if (zone === 'dungeon') _dungGridAdd(col); tempWalls.push({ col, life, mesh: m }); }
+function _dropWallCol(col) { for (const arr of [townColliders, wildColliders, dungeonColliders]) { const i = arr.indexOf(col); if (i >= 0) { arr.splice(i, 1); if (zone === 'dungeon') _dungGridRemove(col); return; } } }
 function tickFieldFx(dt) {
   for (const tg of telegraphs) { tg.t -= dt; const p = 1 - Math.max(0, tg.t / tg.t0); tg.mesh.scale.setScalar(tg.r * (0.3 + 0.7 * p) * 0.85); if (tg.t <= 0) { tg.dead = true; removeMesh(tg.mesh); if (tg.cb) tg.cb(); } }
   _compact(telegraphs, _deadFlag, null);
@@ -115,17 +115,17 @@ function applyOnHit(ent, type, baseDmg) {
   else if (type === 'stun') applyStatus(ent, 'stun', 800, 0);
   else applyStatus(ent, type, 1800, Math.max(1, baseDmg * 0.2));
 }
+// player DoTs are mitigated by the matching resist (+ allRes), capped 75%; bleed is physical → unresisted
+function dotRes(pe, el) { if (!pe) return 1; return 1 - Math.min(75, (pe[el] || 0) + (pe.allRes || 0)) / 100; }
 function tickStatuses(ent, dt, isPlayer) {
   ent.stunned = false; if (!isPlayer) ent.chilled = false; const arr = ent.statuses; if (!arr || !arr.length) return;
   let dot = 0;
-  // player DoTs are mitigated by the matching resist (+ allRes), capped 75%; bleed is physical → unresisted
   /** @type {Effects|null} */ const pe = isPlayer ? (player.effects || {}) : null;
-  const dotRes = el => { if (!pe) return 1; return 1 - Math.min(75, (pe[el] || 0) + (pe.allRes || 0)) / 100; };
   for (const s of arr) {
     s.dur -= dt; s.age = (s.age || 0) + dt; const sec = dt / 1000; const st = s.stacks || 1;
-    if (s.type === 'burn') dot += s.val * st * sec * dotRes('fireRes');
+    if (s.type === 'burn') dot += s.val * st * sec * dotRes(pe, 'fireRes');
     else if (s.type === 'bleed') dot += s.val * st * sec;
-    else if (s.type === 'poison') dot += s.val * st * sec * (1 + Math.min(2, s.age / 1500)) * dotRes('poisonRes');
+    else if (s.type === 'poison') dot += s.val * st * sec * (1 + Math.min(2, s.age / 1500)) * dotRes(pe, 'poisonRes');
     else if (s.type === 'chill') { if (!isPlayer) ent.chilled = true; }
     else if (s.type === 'stun') ent.stunned = true;
   }
@@ -133,11 +133,12 @@ function tickStatuses(ent, dt, isPlayer) {
     if (isPlayer) { if (!_perfGod) player.hp -= dot; if (player.hp < 0) player.hp = 0; updateGlobes(); if (player.hp <= 0 && running && !_perfGod) { const d0 = arr.find(s => s.type === 'burn' || s.type === 'bleed' || s.type === 'poison'); if (d0) player._lastHit = d0.type === 'burn' ? 'burning' : d0.type === 'bleed' ? 'bleeding' : 'poison'; sfx('die'); gameOver(); } }
     else { ent.hp -= dot; ent.flash = Math.max(ent.flash, 4); if (ent.dotAcc === undefined) ent.dotAcc = 0; ent.dotAcc += dot; if (ent.dotAcc >= 1) { floatText(Math.round(ent.dotAcc), ent.x, ent.z + 0.6, '#ff9a5b'); ent.dotAcc = 0; } if (ent.hp <= 0) { killMonster(ent); return; } }
   }
-  ent.statuses = arr.filter(s => s.dur > 0);
+  _compact(arr, _deadDur, null);
 }
 function hitMonster(m, from) { sfx('melee'); meleeDamage(m, 1, from); }
 function hitMonsterProj(m, dmg, kind) { const rm = monsterResistMult(m, kind); if (rm < 1) { floatText('resist', m.x, m.z + 1, '#9aa'); } dmg *= rm; if (player.elemMult && player.elemMult[kind]) dmg *= player.elemMult[kind]; m.hp -= dmg; m.flash = 8; if (!m._nova) spawnSparks(m.x, m.z, kind === 'frost' ? 0x9fe8ff : kind === 'poison' ? 0x8fe07a : kind === 'lightning' ? 0xcfe8ff : kind === 'phys' ? 0xd8d8e8 : 0xff8a3a, 5); floatText(Math.round(dmg), m.x, m.z, rm > 1 ? '#ff8a6a' : '#ffe'); if (player.effects.lifesteal > 0) player.hp = Math.min(player.hpMax, player.hp + dmg * player.effects.lifesteal); if (player.effects.manaleech > 0) player.mp = Math.min(player.mpMax, player.mp + dmg * player.effects.manaleech); if (m._nova !== true) procOnHit(m, dmg); if (m.hp <= 0) killMonster(m); }
 function killMonster(m) {
+  if (m.dead) return; // idempotent: removal is deferred (m.dead + end-of-frame _compact in 17-update), so a 2nd damage source this frame (deathnova chain, another volley bolt, next-frame AoE) must not re-drop loot
   _ev(m.boss ? 'killBoss' : m.elite ? 'killElite' : 'kill');
   gainXP(m.xp); player.kills++; killsTxt.textContent = 'Slain: ' + player.kills;
   if (zone === 'dungeon') { if (floorObj && !floorObj.done) { let paid = bountyProgress(floorObj, m.champion ? 'champion' : 'kill'); if (!paid && m.elite && bountyProgress(floorObj, 'elite')) paid = true; if (paid) payBounty(); } renderObjective(); }
@@ -145,7 +146,7 @@ function killMonster(m) {
   sfx(m.boss ? 'bossdie' : 'death'); spawnSparks(m.x, m.z, 0xff7a3a, m.boss ? 8 : 7); impactFlash(m.x, m.z, m.boss ? 0xff5030 : 0xffb060);
   if (m.empowered && !m.boss) { spawnExplosion(m.x, m.z, 0xff6a2a); if (Math.hypot(m.x - player.x, m.z - player.z) < 7) damagePlayer(Math.round(m.dmg * 0.8), [], 'a death explosion'); }
   if (m.boss) {
-    bossActive = false; boss = null;
+    bossActive = false; boss = null; invalidateDungeonInter(); // boss gate lifts — interact list (deeper/cowexit) is live again
     if (depth === COW_DEPTH) { if (d_cowExit) d_cowExit.group.visible = true; spawnExplosion(m.x, m.z, 0xffd24d); showMsg('The Cow King is slain! The herd is avenged… moo.'); }
     else { if (d_deeperPortal) d_deeperPortal.group.visible = true; spawnExplosion(m.x, m.z, 0xff3020); showMsg('The way down opens!'); }
     if (m.variant === 'devil' && character && character.flags && !character.flags.devilSlain) { character.flags.devilSlain = true; saveProgress(false); setTimeout(() => showMsg('Something bovine stirs near Aldermere…'), 2500); } /* keyed cow-level access: fell Belphegor */
@@ -176,7 +177,7 @@ function killMonster(m) {
     if (Math.random() < 0.05) dropLoot(m.x + rand(-1, 1), m.z + rand(-1, 1), 'gem', { t: choice(GEM_KEYS), q: Math.random() < 0.7 ? 0 : 1 });
     if (Math.random() < .12) dropLoot(m.x + rand(-1, 1), m.z + rand(-1, 1), (Math.random() < 0.4 ? 'manapotion' : 'potion'), 1);
   }
-  killMesh(m); monsters = monsters.filter(x => x !== m); if (target === m) target = null;
+  killMesh(m); m.dead = true; if (target === m) target = null; // array shrink deferred to end-of-frame _compact in 17-update.js
   if (player.effects.deathnova > 0 && !m._nova) { spawnExplosion(m.x, m.z, 0xff7030); const dn = player.dmg * player.effects.deathnova; for (const o of [...monsters]) { if (o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 6) { o._nova = true; hitMonsterProj(o, dn, 'fire'); o._nova = false; } } }
 }
 function gainXP(n) {
@@ -208,4 +209,7 @@ const tmpV = new THREE.Vector3(); function floatText(txt, x, z, col) { _ev('floa
 
 /* ---------- collision ---------- */
 function activeColliders() { return zone === 'town' ? townColliders : zone === 'wild' ? wildColliders : zone === 'dungeon' ? dungeonColliders : []; }
+/* Broad-phase entry point for resolveCircles: dungeon floors use the room-grid bucket (dungeonCollidersNear,
+   09-dungeon.js), wild/town are untouched — same flat array as before. */
+function nearbyColliders(x, z) { return zone === 'dungeon' ? dungeonCollidersNear(x, z) : activeColliders(); }
 function resolveCircles(e, r, arr, iters) { for (let it = 0; it < iters; it++) { for (const c of arr) { if (c === e) continue; const dx = e.x - c.x, dz = e.z - c.z; let d = Math.hypot(dx, dz); const min = r + (c.r || 1); if (d < min) { if (d < 0.0001) { d = 0.0001; e.x += 0.01; } e.x += dx / d * (min - d); e.z += dz / d * (min - d); } } } }
