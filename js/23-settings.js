@@ -5,9 +5,9 @@
    and Custom (manual). Big low-end levers: resolution, shadows, AO, reflections, light budget, shadow-map
    size. postfx/colorgrade/vfx stay on across tiers (cheap and core to the art style). */
 const QUALITY_PRESETS = {
-  low: { resScale: 70, shadows: false, ssao: false, reflections: false, bloom: 0.6, postfx: true, colorgrade: true, vfx: true, plMax: 4, shadowSize: 512, particles: false, groundTex: false },
-  medium: { resScale: 90, shadows: true, ssao: false, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 7, shadowSize: 1024, particles: false, groundTex: true },
-  high: { resScale: 100, shadows: true, ssao: true, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 9, shadowSize: 1024, particles: true, groundTex: true },
+  low: { resScale: 70, shadows: false, ssao: false, reflections: false, bloom: 0.6, postfx: true, colorgrade: true, vfx: true, plMax: 4, shadowSize: 512, particles: false, groundTex: false, scatterDensity: 45 },
+  medium: { resScale: 90, shadows: true, ssao: false, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 7, shadowSize: 1024, particles: false, groundTex: true, scatterDensity: 70 },
+  high: { resScale: 100, shadows: true, ssao: true, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 9, shadowSize: 1024, particles: true, groundTex: true, scatterDensity: 100 },
 };
 function autoTier() { return isWebGPUBackend ? 'high' : 'medium'; } /* WebGL2 fallback => Medium (conservative); WebGPU => High. (A GPU-time probe could refine later — deferred; no low-end device to calibrate against.) */
 function applyLights() { const s = SAVE._data.settings; PL_MAX = (s.plMax != null ? s.plMax : 9); if (typeof cullLights === 'function') cullLights(); }
