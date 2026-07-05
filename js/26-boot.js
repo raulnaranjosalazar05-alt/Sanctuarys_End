@@ -19,4 +19,4 @@ renderer.init().then(() => {
   renderFrame();
   document.getElementById('loading').style.display = 'none';
   show('selectScreen'); startMenu();
-}).catch(err => { console.error('[Sanctuary] renderer.init() failed:', err); document.getElementById('loading').textContent = 'Renderer init failed - see console. (WebGPU/WebGL2 unavailable?)'; });
+}).catch(err => { console.error('[Sanctuary] renderer.init() failed:', err); document.getElementById('loadtitle').textContent = 'Renderer init failed - see console. (WebGPU/WebGL2 unavailable?)'; });

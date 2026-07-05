@@ -1,5 +1,15 @@
 /* ================= ZONES ================= */
 let zone = 'town', depth = 0;
+const LOAD_TIPS = [
+  'Chilled foes shatter — cold builds strike harder against frozen enemies.',
+  'Socket gems at the Jeweler to shape your build.',
+  'Shrines grant fleeting power. Seek them before the fight finds you.',
+  'Set bonuses reward the patient collector — three pieces, then six.',
+  'The deeper you descend, the richer the spoils… and the graver the danger.',
+  'Legendary-touched rares can rival uniques. Don\'t vendor them unread.',
+  'Techniques spend a third axis of power — train them between runs.',
+  'Some say a bovine stirs near Aldermere…',
+];
 let floorObj = null, shrines = [], shrineGroup = null; // per-floor bounty + dungeon shrines (ephemeral, rebuilt each enterDungeon)
 let wildObj = null; // per-visit wilderness hunt (rolled by enterWild)
 function isCombat() { return zone === 'wild' || zone === 'dungeon'; }
@@ -79,12 +89,21 @@ function warmCombatPipelines() {
   return tmp;
 }
 let _warming = false, _warmToken = 0;
+function _hideCurtain(el) { if (!el) return; el.classList.add('reveal'); const t = _warmToken; setTimeout(() => { if (t === _warmToken) { el.style.display = 'none'; el.classList.remove('reveal'); } }, 320); } /* ~0.3s opacity fade-out; token-guarded so a newer warm cancels a stale fade */
 function warmScene(label, buildFn) {
   const el = document.getElementById('loading');
   const tok = ++_warmToken;
   _warming = true;
-  if (el) { el.textContent = label || 'Summoning the world…'; el.style.display = ''; }
-  setTimeout(() => { if (tok === _warmToken && _warming) { console.warn('warmScene watchdog: forcing reveal'); _warming = false; if (el) el.style.display = 'none'; last = now(); } }, 8000);
+  if (el) {
+    const p = (label || 'Summoning the world…').split(' · ');
+    const T = document.getElementById('loadtitle'); if (T) T.textContent = p[0];
+    const S = document.getElementById('loadsub');   if (S) S.textContent = p[1] || '';
+    const P = document.getElementById('loadtip');
+    if (P) { P.textContent = LOAD_TIPS[(Math.random() * LOAD_TIPS.length) | 0]; P.style.animation = 'none'; void P.offsetWidth; P.style.animation = ''; } /* retrigger the .6s-delayed fade so sub-second loads never flash a tip */
+    el.style.setProperty('--load-tint', zone === 'dungeon' ? '168,38,42' : zone === 'wild' ? '90,120,60' : '150,90,40');
+    el.classList.remove('reveal'); el.style.display = ''; /* reveal removed → opacity 1 → instant opaque (no fade-IN, keeps the frozen frame hidden) */
+  }
+  setTimeout(() => { if (tok === _warmToken && _warming) { console.warn('warmScene watchdog: forcing reveal'); _warming = false; _hideCurtain(el); last = now(); } }, 8000);
   /* yield two frames so the opaque overlay actually paints before the (blocking) build+warm render begins */
   requestAnimationFrame(() => requestAnimationFrame(async () => {
     if (tok !== _warmToken) return;
@@ -103,7 +122,7 @@ function warmScene(label, buildFn) {
       for (const o of _warmMobs) { if (o.userData && o.userData.glb) removeMob(o); else removeMesh(o); } /* drop temp instances (noDispose → shared geo/mat survive) */
       // biome-ignore lint/correctness/noUnsafeFinally: the try/catch above already absorbs all throws, so this return only skips the cleanup tail when a newer warm-up superseded this token — no exception is masked.
       if (tok !== _warmToken) return;
-      _warming = false; if (el) el.style.display = 'none'; last = now(); placeCamera(player);
+      _warming = false; _hideCurtain(el); last = now(); placeCamera(player);
     }
   }));
 }
