@@ -6,7 +6,7 @@ renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 renderer.domElement.addEventListener('mousedown', e => {
   if (!running || busyPanel() || anyModal()) return; e.preventDefault(); const m = pick(e);
   if (e.button === 2) { rmbDown = true; if (isCombat()) castActive(character.loadout[1], { x: mouseWorld.x, z: mouseWorld.z }); return; }
-  if (e.button === 0) { lmbDown = true; if (m && isCombat()) { target = m; moveTarget = null; } else { moveTarget = { x: mouseWorld.x, z: mouseWorld.z }; target = null; } }
+  if (e.button === 0) { lmbDown = true; if (m && isCombat()) { target = m; moveTarget = null; } else { _moveTgt.x = mouseWorld.x; _moveTgt.z = mouseWorld.z; moveTarget = _moveTgt; target = null; } }
 });
 renderer.domElement.addEventListener('mousemove', e => { if (running && !busyPanel() && !anyModal()) pick(e); });
 addEventListener('mouseup', e => { if (e.button === 2) rmbDown = false; else if (e.button === 0) lmbDown = false; });
@@ -57,7 +57,7 @@ addEventListener('keydown', e => {
   const a = actionForKey(e);
   const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && a !== 'close') return;
   if (a === 'close') { if (wpModal && wpModal.style.display === 'block') { closeWaypoints(); } else if (mpModal && mpModal.style.display === 'block') { closeMP(); } else if (settingsModal && settingsModal.style.display === 'block') { closeSettings(); } else if (helpModal && helpModal.style.display === 'block') { closeHelp(); } else if (running && anyPanel()) { closeAll(); } return; }
-  if (a === 'toggleDebug') { _dbgOn = !_dbgOn; const el = document.getElementById('dbg'); if (el) { el.style.display = _dbgOn ? 'block' : 'none'; if (_dbgOn) updateDebug(); } return; }
+  if (a === 'toggleDebug') { _dbgOn = !_dbgOn; SAVE._data.settings.perfHud = _dbgOn; SAVE.persist(); /* Phase 0 rig: the perf overlay is now a persisted, always-available toggle (off by default), not a ?perf=1-only gate. */ const el = document.getElementById('dbg'); if (el) { el.style.display = _dbgOn ? 'block' : 'none'; if (_dbgOn) updateDebug(); } return; }
   if (a === 'toggleHelp') { if (helpModal.style.display === 'block') { closeHelp(); } else if (running && !anyModal()) { openHelp(); } return; }
   if (a === 'toggleMap') { if (wpModal.style.display === 'block') { closeWaypoints(); } else if (running && !anyModal() && !anyPanel()) { openWaypoints(); } return; }
   if (anyModal()) return;

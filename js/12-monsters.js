@@ -1,4 +1,5 @@
 let monsters = [], projectiles = [], loots = [], floats = [], fx = []; let target = null, moveTarget = null; let boss = null, bossActive = false;
+const _moveTgt = { x: 0, z: 0 }; /* Phase 1: reused LMB move-target object (was a fresh {x,z} literal every frame LMB is held, ~60/sec). moveTarget only ever holds an {x,z} or null and the click-to-move sites overwrite it continuously, so one shared object is safe. */
 /* Phase 1: in-place list compaction — replaces the per-frame Array.filter() that allocated a fresh array
    AND a fresh closure every frame for projectiles/fx/loots/floats. Predicate/killer are module-level
    singletons (no per-frame closure alloc); arr.length=w truncates in place (no realloc). Order-preserving. */
