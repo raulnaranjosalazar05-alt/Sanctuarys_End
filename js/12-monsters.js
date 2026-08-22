@@ -1,5 +1,39 @@
 let monsters = [], projectiles = [], loots = [], floats = [], fx = []; let target = null, moveTarget = null; let boss = null, bossActive = false;
 const _moveTgt = { x: 0, z: 0 }; /* Phase 1: reused LMB move-target object (was a fresh {x,z} literal every frame LMB is held, ~60/sec). moveTarget only ever holds an {x,z} or null and the click-to-move sites overwrite it continuously, so one shared object is safe. */
+
+/* ---- Phase 2: uniform spatial hash over dynamic monsters (opt-in, settings.monGrid, DEFAULT OFF) ----
+   Mirrors the dungeon-collider grid idiom (_dungColGrid, js/09-dungeon.js): floor(x/cell),floor(z/cell) ->
+   monster[], rebuilt once per frame after monster positions are final (rebuildMonsterGrid, called post-_compact
+   in 17-update.js). monstersNear(x,z,r) returns a SUPERSET of the monsters within r — cell + neighbor rings
+   expanded by _MG_MARGIN to cover per-frame movement (knockback) since the rebuild — so every consumer's exact
+   distance re-test yields the identical hit SET a linear scan would. Wired only into the per-frame O(P×M)
+   projectile→monster collision (single call site, no nesting, so the shared scratch is safe).
+   DEFAULT OFF because it changes hit iteration order for overlapping monsters (which of two overlapping mobs a
+   non-piercing bolt strikes), shifting the seed-deterministic perf-harness RNG. Enable + A/B validate parity in
+   a real browser before flipping the default. When off, monstersNear returns the live `monsters` array → the
+   collision loop is byte-identical to before. Becomes clearly worthwhile if MOB_CAP (30) is raised. */
+let _monGridOn = false;
+const _MG_CELL = 10, _MG_MARGIN = 5, _monGrid = new Map(), _monScratch = [];
+function _mgKey(x, z) { return Math.floor(x / _MG_CELL) + ',' + Math.floor(z / _MG_CELL); }
+function rebuildMonsterGrid() {
+  _monGridOn = !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.monGrid);
+  if (!_monGridOn) return;
+  _monGrid.clear();
+  for (const m of monsters) { if (m.hp <= 0) continue; const k = _mgKey(m.x, m.z); let a = _monGrid.get(k); if (!a) { a = []; _monGrid.set(k, a); } a.push(m); }
+}
+function monstersNear(x, z, r) {
+  if (!_monGridOn) return monsters; /* opt-out: exact previous behavior (full live array) */
+  const rings = Math.max(1, Math.ceil((r + _MG_MARGIN) / _MG_CELL));
+  const ci = Math.floor(x / _MG_CELL), cj = Math.floor(z / _MG_CELL);
+  const out = _monScratch; out.length = 0;
+  for (let di = -rings; di <= rings; di++) for (let dj = -rings; dj <= rings; dj++) {
+    const a = _monGrid.get((ci + di) + ',' + (cj + dj)); if (a) for (const m of a) out.push(m);
+  }
+  return out;
+}
+/* Console toggle for validation: `__monGrid = true` enables the spatial hash and persists it (mirrors __perfGod).
+   Guarded so the browser-free test harness (which never loads this file) is unaffected. */
+if (typeof window !== 'undefined') Object.defineProperty(window, '__monGrid', { get: () => !!(SAVE._data.settings && SAVE._data.settings.monGrid), set: v => { SAVE._data.settings.monGrid = !!v; SAVE.persist(); } });
 /* Phase 1: in-place list compaction — replaces the per-frame Array.filter() that allocated a fresh array
    AND a fresh closure every frame for projectiles/fx/loots/floats. Predicate/killer are module-level
    singletons (no per-frame closure alloc); arr.length=w truncates in place (no realloc). Order-preserving. */
@@ -76,6 +110,31 @@ const _mGeoC = {}; function _mGeo(k, mk) { return _mGeoC[k] || (_mGeoC[k] = mk()
 const _mMatC = {}; function _mMat(k, mk) { return _mMatC[k] || (_mMatC[k] = mk()); }
 const _mPhong = (col, o) => new THREE.MeshPhongMaterial(Object.assign({ specular: 0x000000, color: col, flatShading: true }, o || {}));
 function removeMob(mesh) { if (mesh && mesh.userData && mesh.userData.noDispose && mesh.userData.bodyMat) mesh.userData.bodyMat.dispose(); removeMesh(mesh); }
+/* Phase 4 (4.4, opt-in settings.monPool, DEFAULT OFF): recycle NON-ELITE monster meshes (Group + per-instance
+   bodyMat, and the GLB SkeletonUtils clone + mixer) instead of orphaning/disposing one per kill. Only non-elite
+   are pooled — they carry no aura/eliteLight children and a constant per-type scale, so the reuse reset surface
+   is small (emissive flash + rewind the mixer to idle/walk). Bounded per type. poolOrRemove() is the removal
+   entry point (kill/flee/death-anim-done); _reusePooledMon() the spawn-side reuse. DEFAULT OFF: reusing a GLB
+   skeleton clone (resetting its animation cleanly) needs visual validation; when off, every kill disposes as
+   before and _reusePooledMon returns null so spawns build fresh. */
+const _monMeshPool = {}, _MON_POOL_MAX = 6;
+function _monPoolOn() { return !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.monPool); }
+if (typeof window !== 'undefined') Object.defineProperty(window, '__monPool', { get: _monPoolOn, set: v => { SAVE._data.settings.monPool = !!v; SAVE.persist(); } });
+function poolOrRemove(mesh) {
+  const ud = mesh && mesh.userData;
+  if (ud && ud.poolType && _monPoolOn()) {
+    const pool = _monMeshPool[ud.poolType] || (_monMeshPool[ud.poolType] = []);
+    if (pool.length < _MON_POOL_MAX) { scene.remove(mesh); mesh.visible = false; pool.push(mesh); return; }
+  }
+  removeMob(mesh);
+}
+function _reusePooledMon(t) {
+  const pool = _monMeshPool[t]; if (!pool || !pool.length) return null;
+  const g = pool.pop(); g.visible = true;
+  if (g.userData.body && g.userData.body.material) g.userData.body.material.emissive.setHex(0); /* clear leftover hit-flash (procedural) */
+  if (g.userData.mixer) { g.userData.mixer.stopAllAction(); const s = g.userData.actions && (g.userData.actions.walk || g.userData.actions.idle); if (s) { s.reset(); s.setLoop(THREE.LoopRepeat, Number.POSITIVE_INFINITY); s.play(); g.userData.cur = s; } } /* rewind the GLB clone out of its death pose */
+  return g;
+}
 function buildMonsterMesh(t, col, scale) {
   if (GLB_PROTO[t]) { const _ge = buildGLBEntity(t, scale / ((MTYPES[t] && MTYPES[t].scale) || 1)); if (_ge) return _ge; } const g = new THREE.Group();
   const bodyMat = _mPhong(col, { map: texSkin(1, 1) });                                       // per-instance (isolated flash)
@@ -153,7 +212,12 @@ function spawnMonster(t, eliteMods, pos) {
   const base = MTYPES[t]; let x, z;
   if (pos) { x = pos.x; z = pos.z; } else { let p = (zone === 'dungeon' && dungeonLayout) ? layoutSpawnPoint(dungeonLayout, player.x, player.z) : null; /* room-aware: spawn in the player's room or a door-neighbor so straight-line chase AI can actually reach them */ if (!p) { const ang = rand(0, Math.PI * 2), d = rand(40, 70); p = { x: player.x + Math.cos(ang) * d, z: player.z + Math.sin(ang) * d }; clampEntToZone(p); } x = p.x; z = p.z; }
   const sc = eliteMods ? base.scale * 1.4 : base.scale;
-  const mesh = buildMonsterMesh(t, base.col, sc); mesh.position.set(x, 0, z); scene.add(mesh);
+  if (typeof ensureRole === 'function' && SAVE._data.settings.lazyRoster && !GLB_PROTO[t]) ensureRole(t); /* Phase 4 (4.1): kick a lazy GLB load on first spawn of this type; buildMonsterMesh uses the procedural fallback until it arrives */
+  const _pool = !eliteMods && _monPoolOn(); /* Phase 4 (4.4): reuse a pooled non-elite mesh when available */
+  let mesh = _pool ? _reusePooledMon(t) : null;
+  if (!mesh) mesh = buildMonsterMesh(t, base.col, sc);
+  if (_pool) mesh.userData.poolType = t;
+  mesh.position.set(x, 0, z); scene.add(mesh);
   let hpM = curScale.hp, dmgM = curScale.dmg, xpM = curScale.xp, speedMult = 1, name = base.name;
   // clone the archetype's resist map so per-instance depth scaling never mutates MTYPES (shared-ref trap)
   let resist = base.resist ? (typeof base.resist === 'string' ? base.resist : { ...base.resist }) : null;

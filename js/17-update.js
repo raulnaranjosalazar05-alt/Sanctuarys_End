@@ -25,7 +25,7 @@ function update(dt) {
 
   if (isCombat()) for (const m of monsters) {
     if (m.hp <= 0) continue; if (m.flash > 0) m.flash -= fr; tickStatuses(m, dt, false); if (m.hp <= 0) continue; if (player.effects.chillaura && Math.hypot(m.x - player.x, m.z - player.z) < 14 && m.slow < 12) m.slow = 12; const sp = m.speed * (m.speedMult || 1) * Math.min(m.slow > 0 ? 0.45 : 1, m.chilled ? 0.5 : 1) * 60 * dt / 1000; if (m.slow > 0) m.slow -= fr; const d = Math.hypot(m.x - player.x, m.z - player.z);
-    if (m.flee) { m.ttl -= dt; if (m.ttl <= 0) { removeMob(m.mesh); m.dead = true; if (target === m) target = null; showMsg('The goblin escaped!'); continue; } } // escape: clean vanish (no death anim), drops NOTHING (must not route through killMonster); array shrink deferred to _compact below
+    if (m.flee) { m.ttl -= dt; if (m.ttl <= 0) { poolOrRemove(m.mesh); m.dead = true; if (target === m) target = null; showMsg('The goblin escaped!'); continue; } } // escape: clean vanish (no death anim), drops NOTHING (must not route through killMonster); array shrink deferred to _compact below
     if (!m.stunned) {
       if (m.elite) { for (const id of m.elite) { const md = ELITE_MODS[id]; if (md && md.onAI) md.onAI(m, d, fr); } } // elite affix behaviors are table hooks, not name checks
       if (m.onAI && !m.flee && !m.boss) m.onAI(m, d, fr); // per-type signature move (brute charge, hound leap, shaman totem, wraith blink, totem pulse)
@@ -39,6 +39,7 @@ function update(dt) {
     m.mesh.position.set(m.x, m.mesh.userData.glb ? 0 : Math.abs(Math.sin(T * 0.004 + m.bob)) * 0.3, m.z); m.mesh.lookAt(player.x, m.mesh.position.y, player.z); if (m.mesh.userData.body) m.mesh.userData.body.material.emissive.setHex(m.flash > 0 ? 0x884400 : 0x000000); if (m.mesh.userData.mixer && _animActive(m.x, m.z)) m.mesh.userData.mixer.update(dt * 0.001); if (m.mesh.userData.aura) { m.mesh.userData.aura.rotation.z += 0.05; const s2 = 1 + Math.sin(T * 0.006) * 0.12; m.mesh.userData.aura.scale.set(s2, s2, s2); }
   }
   _compact(monsters, _deadFlag, null); // mesh cleanup already ran at kill/flee time (killMesh/removeMob); this just shrinks the array
+  rebuildMonsterGrid(); // Phase 2 (opt-in, settings.monGrid): rebuild the monster spatial hash from final positions before the projectile loop queries it; no-op when the setting is off
 
   if (running && isCombat()) tickFieldFx(dt); // telegraphs fire, hazards burn, temp walls expire
 
@@ -46,7 +47,7 @@ function update(dt) {
     if (p.homing && monsters.length) { let hb = null, hd = 1e9; for (const m of monsters) { const dx = m.x - p.x, dz = m.z - p.z, d = dx * dx + dz * dz; if (d < hd) { hd = d; hb = m; } } if (hb) { const sp = Math.hypot(p.vx, p.vz) || 0.8, ca = Math.atan2(p.vx, p.vz), rel = Math.atan2(hb.x - p.x, hb.z - p.z) - ca, da = Math.atan2(Math.sin(rel), Math.cos(rel)), na = ca + clamp(da, -0.09, 0.09); p.vx = Math.sin(na) * sp; p.vz = Math.cos(na) * sp; } }
     p.x += p.vx * 60 * dt / 1000; p.z += p.vz * 60 * dt / 1000; p.life -= fr; p.mesh.position.set(p.x, 2, p.z);
     if (p.kind === 'enemy') { if (Math.hypot(p.x - player.x, p.z - player.z) < player.r + 0.6) { damagePlayer(p.dmg, p.mods, p.src); if (p.chill) applyStatus(player, 'chill', 1400, 0); p.life = 0; } }
-    else { for (const m of monsters) { const _pdx = p.x - m.x, _pdz = p.z - m.z, _pr = m.r + 0.6; if (_pdx * _pdx + _pdz * _pdz < _pr * _pr) { if (p.hit && p.hit.has(m)) continue; hitMonsterProj(m, p.dmg, p.kind); if (m.hp > 0) { if (p.kind === 'frost') m.slow = p.slow; if (p.onHit) applyOnHit(m, p.onHit, p.dmg); if (p.freeze) applyStatus(m, 'chill', 1500, 0); if (p.knockback) { const a = Math.atan2(m.x - p.x, m.z - p.z); m.x += Math.sin(a) * 2.2; m.z += Math.cos(a) * 2.2; } } if (p.vampiric) player.hp = Math.min(player.hpMax, player.hp + p.dmg * 0.12); projBurst(p); if (p.hit) p.hit.add(m); if (p.pierce && p.pierce > 0) { p.pierce--; } else { p.life = 0; break; } } } }
+    else { for (const m of monstersNear(p.x, p.z, 6)) { const _pdx = p.x - m.x, _pdz = p.z - m.z, _pr = m.r + 0.6; if (_pdx * _pdx + _pdz * _pdz < _pr * _pr) { if (p.hit && p.hit.has(m)) continue; hitMonsterProj(m, p.dmg, p.kind); if (m.hp > 0) { if (p.kind === 'frost') m.slow = p.slow; if (p.onHit) applyOnHit(m, p.onHit, p.dmg); if (p.freeze) applyStatus(m, 'chill', 1500, 0); if (p.knockback) { const a = Math.atan2(m.x - p.x, m.z - p.z); m.x += Math.sin(a) * 2.2; m.z += Math.cos(a) * 2.2; } } if (p.vampiric) player.hp = Math.min(player.hpMax, player.hp + p.dmg * 0.12); projBurst(p); if (p.hit) p.hit.add(m); if (p.pierce && p.pierce > 0) { p.pierce--; } else { p.life = 0; break; } } } }
     if (Math.abs(p.x) > MAP || Math.abs(p.z) > MAP) p.life = 0;
   }
   _compact(projectiles, _deadLife0, _killMesh);
@@ -56,7 +57,7 @@ function update(dt) {
     else if (e.mesh.material) { e.mesh.material.opacity = e.life / 14; }
   }
   _compact(fx, _deadLife0, _killMesh);
-  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); removeMesh(d.g); _dying.splice(i, 1); } }
+  for (let i = _dying.length - 1; i >= 0; i--) { const d = _dying[i]; if (d.g.userData.mixer && _animActive(d.g.position.x, d.g.position.z)) d.g.userData.mixer.update(dt * 0.001); d.t -= dt; if (d.t <= 0) { if (d.g.userData.mixer) d.g.userData.mixer.stopAllAction(); poolOrRemove(d.g); _dying.splice(i, 1); } }
 
   for (const l of loots) {
     l.t += dt * 0.005; l.icon.position.y = 1 + Math.sin(l.t) * 0.25; l.icon.rotation.y += 0.04; if (l.ring) { l.ring.rotation.z += 0.02; const ps = 1 + Math.sin(l.t * 1.4) * 0.12; l.ring.scale.set(ps, ps, ps); } if (l.beam && l.tier >= 4) l.beam.material.opacity = 0.4 + Math.sin(l.t * 2) * 0.12; const _lpdx = l.x - player.x, _lpdz = l.z - player.z, _lpr = player.r + 1.4; if (_lpdx * _lpdx + _lpdz * _lpdz < _lpr * _lpr) {

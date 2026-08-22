@@ -310,3 +310,33 @@ function cullLights() {
   for (let i = 0; i < _plSlots.length; i++) { const slot = _plSlots[i], e = cands[i]; if (e) { const L = e.light; slot.position.set(e._wx, e._wy, e._wz); slot.color.copy(L.color); slot.intensity = L.intensity; slot.distance = L.distance; slot.decay = L.decay; } else slot.intensity = 0; }
   _plVisN = _plSlots.length;
 }
+/* Phase 3 (opt-in, settings.cullOffscreen, DEFAULT OFF): re-enable frustum culling on STATIC zone scenery.
+   The scenery meshes are created with frustumCulled=false (forced); this additive pass flips it per the setting
+   without touching the creation sites. Applied only to meshes under the town/wild/dungeon groups — static
+   geometry whose bounding volumes three computes exactly, so culling only ever drops genuinely off-screen
+   geometry (no pop-in). Skinned entities (monsters/NPCs, added straight to `scene`) are intentionally NOT
+   touched here — their animated bounds can exceed the bind pose, which is exactly why culling was disabled on
+   them; that risk needs visual QA before enabling. Called on each zone (re)build + settings apply; when off it
+   just re-asserts false (a cheap no-op traverse, not per-frame). */
+function applyFrustumCull() {
+  const on = !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.cullOffscreen);
+  for (const g of [typeof townGroup !== 'undefined' ? townGroup : null, typeof wildGroup !== 'undefined' ? wildGroup : null, typeof dungeonGroup !== 'undefined' ? dungeonGroup : null]) {
+    if (g) g.traverse(o => { if (o.isMesh || o.isInstancedMesh) o.frustumCulled = on; });
+  }
+}
+/* Phase 3 (opt-in, settings.shadowTight, DEFAULT OFF): tighten the moon shadow ortho frustum from the default
+   ±70 (140² world units) toward the actual lit play radius (±50), raising shadow-texel density and — paired with
+   frustum culling above — letting the shadow pass drop off-frustum casters. Default OFF because too-tight a
+   frustum can clip shadows at screen edges; validate coverage at the gameplay camera before enabling. */
+const _SHADOW_ORTHO = 70;
+function applyShadowFrustum() {
+  const tight = !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.shadowTight);
+  const h = tight ? 50 : _SHADOW_ORTHO;
+  const c = moon.shadow.camera;
+  if (c.left === -h) return; /* unchanged */
+  c.left = -h; c.right = h; c.top = h; c.bottom = -h; c.updateProjectionMatrix(); moon.shadow.needsUpdate = true;
+}
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '__cullOffscreen', { get: () => !!(SAVE._data.settings && SAVE._data.settings.cullOffscreen), set: v => { SAVE._data.settings.cullOffscreen = !!v; SAVE.persist(); applyFrustumCull(); } });
+  Object.defineProperty(window, '__shadowTight', { get: () => !!(SAVE._data.settings && SAVE._data.settings.shadowTight), set: v => { SAVE._data.settings.shadowTight = !!v; SAVE.persist(); applyShadowFrustum(); } });
+}

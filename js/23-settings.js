@@ -5,14 +5,14 @@
    and Custom (manual). Big low-end levers: resolution, shadows, AO, reflections, light budget, shadow-map
    size. postfx/colorgrade/vfx stay on across tiers (cheap and core to the art style). */
 const QUALITY_PRESETS = {
-  low: { resScale: 70, shadows: false, ssao: false, reflections: false, bloom: 0.6, postfx: true, colorgrade: true, vfx: true, plMax: 4, shadowSize: 512, particles: false, groundTex: false },
-  medium: { resScale: 90, shadows: true, ssao: false, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 7, shadowSize: 1024, particles: false, groundTex: true },
-  high: { resScale: 100, shadows: true, ssao: true, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 9, shadowSize: 1024, particles: true, groundTex: true },
+  low: { resScale: 70, shadows: false, ssao: false, reflections: false, bloom: 0.6, postfx: true, colorgrade: true, vfx: true, plMax: 4, shadowSize: 512, particles: false, groundTex: false, scatterDensity: 45 },
+  medium: { resScale: 90, shadows: true, ssao: false, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 7, shadowSize: 1024, particles: false, groundTex: true, scatterDensity: 70 },
+  high: { resScale: 100, shadows: true, ssao: true, reflections: true, bloom: 0.9, postfx: true, colorgrade: true, vfx: true, plMax: 9, shadowSize: 1024, particles: true, groundTex: true, scatterDensity: 100 },
 };
 function autoTier() { return isWebGPUBackend ? 'high' : 'medium'; } /* WebGL2 fallback => Medium (conservative); WebGPU => High. (A GPU-time probe could refine later — deferred; no low-end device to calibrate against.) */
 function applyLights() { const s = SAVE._data.settings; PL_MAX = (s.plMax != null ? s.plMax : 9); if (typeof cullLights === 'function') cullLights(); }
 function applyShadowSize() { const s = SAVE._data.settings; const sz = (s.shadowSize === 512 || s.shadowSize === 2048) ? s.shadowSize : 1024; if (moon.shadow.mapSize.width !== sz) { moon.shadow.mapSize.set(sz, sz); if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; } moon.shadow.needsUpdate = true; } } /* resize requires disposing the existing depth target so it regenerates */
-function applyAllGfx() { applyGraphics(); applyShadowSize(); applyLights(); if (typeof buildPipeline === 'function') buildPipeline(); applyPostFX(); applyReflections(); applyGrade(); if (typeof applyParticles === 'function') applyParticles(); if (typeof refreshGroundTex === 'function') refreshGroundTex(); }
+function applyAllGfx() { applyGraphics(); applyShadowSize(); applyLights(); if (typeof buildPipeline === 'function') buildPipeline(); applyPostFX(); applyReflections(); applyGrade(); if (typeof applyParticles === 'function') applyParticles(); if (typeof refreshGroundTex === 'function') refreshGroundTex(); if (typeof applyFrustumCull === 'function') applyFrustumCull(); if (typeof applyShadowFrustum === 'function') applyShadowFrustum(); }
 /* Resolve s.quality into concrete settings. 'auto' re-resolves by backend each boot; 'custom' leaves the
    individual settings untouched. Returns the bundle applied (or null for custom). */
 function resolveQuality() { const s = SAVE._data.settings; if (!s.quality) s.quality = 'auto'; if (s.quality === 'custom') return null; const tier = (s.quality === 'auto') ? autoTier() : s.quality; const p = QUALITY_PRESETS[tier]; if (p) Object.assign(s, p); return p || null; }

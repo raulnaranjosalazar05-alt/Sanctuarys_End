@@ -92,7 +92,12 @@ function projBurst(p) {
   if (p.lingering) spawnLingerField(p.x, p.z, p.dmg, p.kind, p.onHit);
   if (p.fork && !p._forked) { p._forked = true; const sp = Math.hypot(p.vx, p.vz) || 0.8, base = Math.atan2(p.vx, p.vz); for (const off of [-0.5, 0.5]) { const a = base + off; const c = spawnProj(p.x, p.z, { x: Math.sin(a), z: Math.cos(a) }, sp, p.dmg * 0.7, p.kind, p.slow, p.onHit); c._burst = true; c._forked = true; } }
 }
-function spawnLingerField(x, z, dmg, kind, onHit) { const ep = _fieldEpoch; for (let i = 0; i < 5; i++) { setTimeout(() => { if (_fieldEpoch !== ep || !running || !isCombat()) return; spawnExplosion(x, z, kind === 'frost' ? 0x6ad8ff : 0xff7030); for (const m of monsters) { if (Math.hypot(m.x - x, m.z - z) < 3.5) { hitMonsterProj(m, dmg * 0.35, kind); if (m.hp > 0 && onHit) applyOnHit(m, onHit, dmg * 0.35); } } }, i * 240); } }
+/* Phase 2.3: monster-damaging pulse fields, ticked per-frame by tickFieldFx (js/15-combat.js) instead of 5
+   setTimeout closures each running a full monster scan. Same 5 pulses × dmg*0.35 within r=3.5 at ~240ms, but
+   on-frame (no off-frame hitch), grid-integrated (monstersNear), and torn down by clearFieldFx on zone change
+   (so the old _fieldEpoch race guard is unnecessary; tickFieldFx only runs while running && isCombat). */
+const mfields = [];
+function spawnLingerField(x, z, dmg, kind, onHit) { mfields.push({ x, z, r: 3.5, dmg: dmg * 0.35, kind, onHit, ticks: 5, interval: 240, acc: 0, col: kind === 'frost' ? 0x6ad8ff : 0xff7030 }); }
 // canAllocRune lives here (not with the abilities UI) so it stays browser-free: it reads only
 // SKILL_RUNES/character/player and is called at runtime by the UI, which loads later.
 function canAllocRune(id, nid) {

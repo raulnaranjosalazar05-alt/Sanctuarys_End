@@ -73,6 +73,9 @@ const wildFires = [];
    its own sub-group and kept resident; portal re-entry toggles .visible + re-randomizes the instanced props (no
    dispose → pipelines stay warm, ~tens of ms vs a ~2.7s rebuild-recompile). Rebuilt (not toggled) if the cached
    version was the pre-kit procedural fallback, so real models swap in once nature.glb loads. */
+/* Phase 3 (3.4): scatter-density multiplier (settings.scatterDensity, 100 = full). QUALITY_PRESETS lower it on
+   weaker tiers so wild props instance at reduced count. Default 100 → unchanged. */
+function _sden(n) { const s = SAVE._data && SAVE._data.settings; const m = (s && s.scatterDensity != null ? s.scatterDensity : 100) / 100; return Math.max(1, Math.round(n * m)); }
 const wildRegionCache = new Map(); // region.id -> sub group (userData.scatterIMs, userData.kit)
 function _wildScatterPoint() { for (let t = 0; t < 8; t++) { const ang = rand(0, 6.283), d = Math.sqrt(rand(144, (WILD_R - 8) ** 2)), x = Math.cos(ang) * d, z = Math.sin(ang) * d; if ((x - WILD_SPAWN.x) ** 2 + (z - WILD_SPAWN.z) ** 2 < 256) continue; return { x, z }; } return { x: 0, z: 0 }; }
 function _rescatterWild(sub) {
@@ -109,7 +112,10 @@ function _fillWildScenery(sub, region) {
     sub.add(im);
   };
   // scatter n points across the playable disc, kept clear of the spawn apron
-  const scatter = n => { const a = []; let tries = 0; const cap = n * 4; while (a.length < n && tries < cap) { tries++; const ang = rand(0, 6.283), d = Math.sqrt(rand(12 * 12, (WILD_R - 8) * (WILD_R - 8))), x = Math.cos(ang) * d, z = Math.sin(ang) * d; if ((x - WILD_SPAWN.x) ** 2 + (z - WILD_SPAWN.z) ** 2 < 16 * 16) continue; a.push({ x, z }); } return a; };
+  // Phase 3 (3.4): quality-scaled density — the count is multiplied by settings.scatterDensity/100 (QUALITY_PRESETS
+  // set it to 45/70/100 for low/medium/high), so weaker tiers instance fewer trees/grass/bushes (fewer draws +
+  // triangles) while the default High tier keeps full density. A count reduction only — no per-frame LOD, no pop-in.
+  const scatter = n => { n = _sden(n); const a = []; let tries = 0; const cap = n * 4; while (a.length < n && tries < cap) { tries++; const ang = rand(0, 6.283), d = Math.sqrt(rand(12 * 12, (WILD_R - 8) * (WILD_R - 8))), x = Math.cos(ang) * d, z = Math.sin(ang) * d; if ((x - WILD_SPAWN.x) ** 2 + (z - WILD_SPAWN.z) ** 2 < 16 * 16) continue; a.push({ x, z }); } return a; };
   const dn = region.dens || {}, dc = REGION_DECO[rid] || REGION_DECO.greenwilds;
   // rocks (collider) — KayKit Rock variants, procedural fallback
   {
