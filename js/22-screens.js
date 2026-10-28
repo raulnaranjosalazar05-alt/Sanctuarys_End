@@ -18,7 +18,68 @@ function enterGame() {
   Audio2.init(); Audio2.muted = SAVE._data.settings.muted; applySettings(); document.getElementById('soundBtn').textContent = Audio2.muted ? '🔇' : '🔊'; if (!Audio2.muted) MUSIC.start();
   try { if (!localStorage.getItem('sanctuary_helpseen')) { openHelp(); localStorage.setItem('sanctuary_helpseen', '1'); } } catch (_) { }
 }
-function gameOver() { running = false; saveProgress(false); show('overScreen'); document.getElementById('overTitle').textContent = 'YOU DIED'; const cause = player._lastHit ? `Slain by ${player._lastHit} • ` : ''; const where = zone === 'dungeon' ? `Depth ${depth}` : zone === 'wild' ? ((curRegion && curRegion.name) || 'the wilds') : 'town'; document.getElementById('overStats').textContent = `${character.name} — Level ${player.level} • ${cause}${where} • Slain ${player.kills} • Deepest Depth ${character.maxDepth}`; setHud(false); startMenu(); }
+
+// === FUNCIÓN GAME OVER MODIFICADA CON MONETIZACIÓN ===
+function gameOver() { 
+  running = false; 
+  saveProgress(false); 
+  show('overScreen'); 
+  document.getElementById('overTitle').textContent = 'YOU DIED'; 
+  
+  const cause = player._lastHit ? `Slain by ${player._lastHit} • ` : ''; 
+  const where = zone === 'dungeon' ? `Depth ${depth}` : zone === 'wild' ? ((curRegion && curRegion.name) || 'the wilds') : 'town'; 
+  
+  document.getElementById('overStats').textContent = `${character.name} — Level ${player.level} • ${cause}${where} • Slain ${player.kills} • Deepest Depth ${character.maxDepth}`; 
+  
+  const overScreen = document.getElementById('overScreen');
+  
+  // Limpiamos botones viejos si los hay (para que no se dupliquen si mueres varias veces)
+  const oldBtns = document.getElementById('monetization-buttons');
+  if (oldBtns) oldBtns.remove();
+
+  // Creamos el contenedor de botones
+  const btnContainer = document.createElement('div');
+  btnContainer.id = 'monetization-buttons';
+  btnContainer.style.cssText = 'display: flex; flex-direction: column; gap: 15px; margin-top: 20px; align-items: center;';
+
+  // Botón 1: Revivir con USDT (El que da dinero real)
+  const btnRevivePay = document.createElement('button');
+  btnRevivePay.className = 'btn'; // Usa el estilo del juego
+  btnRevivePay.innerHTML = '⚡ Revive Here (0.15 USDT) <br><span style="font-size:12px;color:#ccc">Keep all your progress</span>';
+  btnRevivePay.onclick = () => {
+      // AQUÍ CONECTAREMOS TU WORKER DE CLOUDFLARE (TON PAY)
+      alert("Connect TON Wallet to pay 0.15 USDT. (Aquí iría tu Worker)");
+      
+      // Si el pago es exitoso, revivimos al jugador aquí mismo:
+      // player.hp = player.hpMax; 
+      // enterGame(); 
+  };
+
+  // Botón 2: Revivir con Anuncio (Gratis, pero con castigo)
+  const btnReviveAd = document.createElement('button');
+  btnReviveAd.className = 'btn small'; // Estilo más pequeño
+  btnReviveAd.innerHTML = '📺 Watch Ad to Revive <br><span style="font-size:12px;color:#ccc">Keep 50% EXP</span>';
+  btnReviveAd.onclick = () => {
+      // AQUÍ CONECTAREMOS ADSGRAM
+      alert("Playing Ad... (Aquí iría AdsGram)");
+      
+      // Si el anuncio termina, revivimos pero con castigo:
+      // player.xp = Math.floor(player.xp * 0.5); 
+      // player.hp = player.hpMax;
+      // enterGame();
+  };
+
+  // Agregamos los botones a la pantalla
+  btnContainer.appendChild(btnRevivePay);
+  btnContainer.appendChild(btnReviveAd);
+  
+  // Insertamos los botones antes del botón de "Quit"
+  const quitBtn = document.getElementById('quitBtn');
+  overScreen.insertBefore(btnContainer, quitBtn);
+
+  setHud(false); 
+  startMenu(); 
+}
 
 function renderSlots() {
   const wrap = document.getElementById('slots'); wrap.innerHTML = '';
@@ -58,14 +119,9 @@ document.getElementById('helpBtn').onclick = openHelp;
 document.getElementById('helpClose').onclick = closeHelp;
 document.getElementById('helpGo').onclick = closeHelp;
 document.getElementById('ptRecenter').onclick = () => { if (character && typeof PTREE !== 'undefined') { const s = PTREE.nodes[PTREE.starts[character.class]]; ptT = { x: -s.x, y: -s.y, s: 1.1 }; applyPT(); } };
-// Escape / Help handled by the unified keybind dispatcher above
 
 // ---- living main-menu scene ----
 let menuActive = false, menuRAF = null, menuT = 0, _menuShadowDirty = true;
 function startMenu() { if (menuActive) return; menuActive = true; _menuShadowDirty = true; try { townGroup.visible = true; wildGroup.visible = false; dungeonGroup.visible = false; } catch (_) { } menuLoop(); }
 function stopMenu() { menuActive = false; if (menuRAF) { cancelAnimationFrame(menuRAF); menuRAF = null; } }
-/* The menu scene is static (only the camera orbits), so the moon shadow map only needs re-rendering while the
-   roster is still streaming in (!GLB_READY, swaps happening) plus one final pass after any scenery rebuild —
-   not every frame. This still satisfies the one-shot refresh that keeps the sampler2DShadow from sampling an
-   unrendered placeholder (the reason it was per-frame). */
 function menuLoop() { if (!menuActive) return; menuT += 0.0032; const r = 44; camera.position.set(Math.sin(menuT) * r, 30, Math.cos(menuT) * r + 6); camera.lookAt(0, 2, -2); if (renderer.shadowMap.enabled && (_menuShadowDirty || !GLB_READY)) { moon.shadow.needsUpdate = true; _menuShadowDirty = false; } renderFrame(); menuRAF = requestAnimationFrame(menuLoop); }
