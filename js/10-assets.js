@@ -164,7 +164,7 @@ function loadRoster() {
   if (!(window.THREE && THREE.GLTFLoader && THREE.SkeletonUtils)) { console.warn('glTF roster: GLTFLoader/SkeletonUtils missing -> procedural models'); return; }
   const loader = new THREE.GLTFLoader();
   function startModels() {
-    const _lazy = !!(SAVE._data && SAVE._data.settings && SAVE._data.settings.lazyRoster);
+    const _lazy = true; /* FORZADO: Carga perezosa siempre activa para que el juego abra rápido */
     const allRoles = Object.keys(GLB_MANIFEST); const roles = _lazy ? allRoles.filter(r => _BOOT_ROLES.has(r)) : allRoles; const propKeys = Object.keys(PROP_KIT_MANIFEST);
     const totalBytes = roles.reduce((a, r) => a + GLB_MANIFEST[r].bytes, 0) + propKeys.reduce((a, k) => a + PROP_KIT_MANIFEST[k].bytes, 0) + BUILDING_MANIFEST.bytes;
     const got = {}; let pending = roles.length + propKeys.length + 1, propPending = propKeys.length;
