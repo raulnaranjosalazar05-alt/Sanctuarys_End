@@ -15,7 +15,15 @@ function applyShadowSize() { const s = SAVE._data.settings; const sz = (s.shadow
 function applyAllGfx() { applyGraphics(); applyShadowSize(); applyLights(); if (typeof buildPipeline === 'function') buildPipeline(); applyPostFX(); applyReflections(); applyGrade(); if (typeof applyParticles === 'function') applyParticles(); if (typeof refreshGroundTex === 'function') refreshGroundTex(); if (typeof applyFrustumCull === 'function') applyFrustumCull(); if (typeof applyShadowFrustum === 'function') applyShadowFrustum(); }
 /* Resolve s.quality into concrete settings. 'auto' re-resolves by backend each boot; 'custom' leaves the
    individual settings untouched. Returns the bundle applied (or null for custom). */
-function resolveQuality() { const s = SAVE._data.settings; if (!s.quality) s.quality = 'auto'; if (s.quality === 'custom') return null; const tier = (s.quality === 'auto') ? autoTier() : s.quality; const p = QUALITY_PRESETS[tier]; if (p) Object.assign(s, p); return p || null; }
+function resolveQuality() { 
+  const s = SAVE._data.settings; 
+  if (!s.quality) s.quality = 'low'; // FORZADO: Calidad baja por defecto
+  if (s.quality === 'custom') return null; 
+  const tier = (s.quality === 'auto') ? 'low' : s.quality; // Si es auto, forzamos low
+  const p = QUALITY_PRESETS[tier]; 
+  if (p) Object.assign(s, p); 
+  return p || null; 
+}
 function setQuality(q) { SAVE._data.settings.quality = q; resolveQuality(); SAVE.persist(); applyAllGfx(); if (typeof renderSettings === 'function') renderSettings(); }
 function markCustomQuality() { SAVE._data.settings.quality = 'custom'; } /* called when a graphics setting is changed by hand so the preset chip reflects reality */
 const settingsModal = document.getElementById('settingsModal');
