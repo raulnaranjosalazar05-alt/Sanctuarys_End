@@ -114,24 +114,35 @@
   #tooltip{position:fixed;z-index:40;pointer-events:none;background:rgba(10,7,4,.96);border:1px solid #4a3a28;border-radius:6px;padding:10px 12px;max-width:280px;font-size:13px;color:#c8b89a;display:none;box-shadow:0 4px 20px rgba(0,0,0,.8);}
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;box-shadow:inset 0 0 180px rgba(0,0,0,.66),inset 0 0 60px rgba(0,0,0,.3);}
   
-  /* ESTILOS DE MONETIZACIÓN (COMPACTOS) */
-  #monetization-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 9999; pointer-events: none; font-family: 'Cinzel', Georgia, serif; }
-  .pool-panel { background: rgba(13, 9, 5, 0.9); padding: 6px 12px; border-radius: 6px; border: 1px solid #e6b84d; box-shadow: 0 0 10px rgba(230,184,77,0.3); pointer-events: auto; }
+  /* ESTILOS DE MONETIZACIÓN (REORGANIZADOS) */
+  #monetization-hud { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 9999; font-family: 'Cinzel', Georgia, serif; }
+  
+  .pool-panel { position: absolute; bottom: 15px; left: 15px; background: rgba(13, 9, 5, 0.9); padding: 6px 12px; border-radius: 6px; border: 1px solid #e6b84d; box-shadow: 0 0 10px rgba(230,184,77,0.3); pointer-events: auto; }
   .pool-title { font-size: 10px; letter-spacing: 1px; color: #e6b84d; }
   #pool-amount { font-size: 16px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 5px rgba(0,255,204,0.4); }
   .leader-text { font-size: 9px; margin-top: 2px; color: #ccc; }
-  .action-btns { display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
-  #btn-store, #btn-wallet, #btn-community { padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: 'Cinzel', Georgia, serif; text-shadow: 0 1px 1px #000; box-shadow: inset 0 1px 0 rgba(255,220,150,0.2), 0 2px 4px rgba(0,0,0,0.5); text-align: center; }
-  #btn-store { background: linear-gradient(180deg, #3a2418, #1a130c); color: #e6b84d; border: 1px solid #6a4a28; }
-  #btn-wallet { background: linear-gradient(180deg, #1a2a3a, #0a1018); color: #00ffcc; border: 1px solid #005a5a; }
-  #btn-community { background: linear-gradient(180deg, #1a3a2a, #0a1810); color: #00ff88; border: 1px solid #005a2a; }
   
-  #store-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 450px; background: rgba(13, 9, 5, 0.95); border: 2px solid #e6b84d; border-radius: 8px; padding: 15px; z-index: 10000; color: #d8c4a0; font-family: Georgia, serif; box-shadow: 0 0 30px rgba(0,0,0,0.9); }
+  .action-btns { position: absolute; bottom: 15px; right: 15px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+  #btn-store, #btn-wallet, #btn-community, #btn-rules, #btn-leaderboard { padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: 'Cinzel', Georgia, serif; text-shadow: 0 1px 1px #000; box-shadow: inset 0 1px 0 rgba(255,220,150,0.2), 0 2px 4px rgba(0,0,0,0.5); text-align: center; }
+  #btn-store { background: linear-gradient(180deg, #3a2418, #1a130c); color: #e6b84d; border: 1px solid #6a4a28; }
+  #btn-wallet { background: linear-gradient(180deg, #2a2418, #1a130c); color: #ffcc00; border: 1px solid #6a4a28; }
+  #btn-community { background: linear-gradient(180deg, #1a3a2a, #0a1810); color: #00ff88; border: 1px solid #005a2a; }
+  #btn-rules { background: linear-gradient(180deg, #2a1f14, #1a130c); color: #c4a878; border: 1px solid #4a3a28; }
+  #btn-leaderboard { background: linear-gradient(180deg, #2a3a4a, #101820); color: #00ccff; border: 1px solid #005a7a; }
+
+  #store-modal, #wallet-modal, #rules-modal, #leaderboard-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 450px; background: rgba(13, 9, 5, 0.95); border: 2px solid #e6b84d; border-radius: 8px; padding: 15px; z-index: 10000; color: #d8c4a0; font-family: Georgia, serif; box-shadow: 0 0 30px rgba(0,0,0,0.9); }
   .store-item { background: rgba(40, 30, 18, 0.5); border: 1px solid #5a4226; padding: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .store-item-title { color: #e6b84d; font-weight: bold; font-size: 14px; }
   .store-item-desc { font-size: 10px; color: #9a8a6a; }
   .buy-btn { background: #3a2418; color: #e6b84d; border: 1px solid #6a4a28; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
   .ad-btn { background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-top: 4px; width: 100%; }
+  #wallet-input { width: 100%; padding: 8px; background: #1a130c; color: #e6b84d; border: 1px solid #4a3a28; border-radius: 4px; margin: 10px 0; font-family: monospace; }
+  .rules-text { font-size: 12px; line-height: 1.5; color: #cbb89a; }
+  .rules-text h3 { color: #e6b84d; margin-top: 10px; margin-bottom: 4px; font-size: 14px; }
+  .leaderboard-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
+  .leaderboard-tab { flex: 1; padding: 5px; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; border-radius: 4px; cursor: pointer; text-align: center; font-size: 12px; }
+  .leaderboard-tab.active { background: #3a2418; color: #e6b84d; border-color: #6a4a28; }
+  .leaderboard-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #2a2218; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -144,8 +155,10 @@
     </div>
     <div class="action-btns">
         <button id="btn-store">🛒 STORE</button>
-        <button id="btn-wallet">💳 CONNECT WALLET</button>
-        <button id="btn-community">✈️ JOIN COMMUNITY</button>
+        <button id="btn-wallet">👛 MY WALLET</button>
+        <button id="btn-leaderboard">🏆 LEADERBOARD</button>
+        <button id="btn-rules">📜 RULES</button>
+        <button id="btn-community"><span style="color: #229ED9; font-size: 14px;">✈️</span> COMMUNITY</button>
     </div>
 </div>
 
@@ -153,7 +166,6 @@
 <div id="store-modal">
     <h2 style="color: #e6b84d; text-align: center; margin-bottom: 15px; font-family: 'Cinzel', serif; font-size: 18px;">SANCTUARY STORE</h2>
     <div style="display: flex; flex-direction: column; gap: 10px;">
-        <!-- Gold Pouch -->
         <div class="store-item">
             <div>
                 <div class="store-item-title">Gold Pouch</div>
@@ -164,7 +176,6 @@
                 <button class="ad-btn" data-item="gold_ad">📺 Watch Ad (100 Gold)</button>
             </div>
         </div>
-        <!-- Legendary Loot Chest -->
         <div class="store-item">
             <div>
                 <div class="store-item-title" style="color:#00ffcc;">Legendary Loot Chest</div>
@@ -177,6 +188,52 @@
         </div>
     </div>
     <button id="close-store" style="margin-top: 15px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 8px; border-radius: 4px; cursor: pointer; font-family: Georgia; font-size: 12px;">Close</button>
+</div>
+
+<!-- MODAL DE LA WALLET -->
+<div id="wallet-modal">
+    <h2 style="color: #e6b84d; text-align: center; margin-bottom: 10px; font-family: 'Cinzel', serif; font-size: 16px;">YOUR BEP20 WALLET</h2>
+    <p style="font-size: 11px; color: #9a8a6a; text-align: center;">Paste your BEP20 (BSC) wallet address here to receive your prizes.</p>
+    <input type="text" id="wallet-input" placeholder="0x...">
+    <button id="save-wallet" style="width: 100%; background: #3a2418; color: #e6b84d; border: 1px solid #6a4a28; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Save Wallet</button>
+    <button id="close-wallet" style="margin-top: 8px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;">Close</button>
+</div>
+
+<!-- MODAL DE REGLAS -->
+<div id="rules-modal">
+    <h2 style="color: #e6b84d; text-align: center; margin-bottom: 10px; font-family: 'Cinzel', serif; font-size: 16px;">📜 RULES</h2>
+    <div class="rules-text">
+        <h3>🏆 Sanctuary Tournaments</h3>
+        <p><b>1. Free League (Open to All)</b><br>
+        Earn points by leveling up (x50), reaching deeper floors (x100), and slaying monsters (Normal 1pt, Elite 5pts, Boss 50pts). Compete for Gold, Potions, and Rare Items!</p>
+        
+        <p><b>2. Pro League (Entry: 1.00 USDT)</b><br>
+        Pay the entry fee to compete for the Weekly Prize Pool in USDT (BEP20). 80% of all entry fees go to the prize pool. The Top 1 player wins it all!</p>
+        
+        <p><b>3. The Store</b><br>
+        Buy Gold and Legendary Loot Chests with USDT. All store purchases are final.</p>
+        
+        <p><b>4. Ads & Revive</b><br>
+        Watch an ad to revive (keep 75% of points, limit 1 per run). Or pay 0.25 USDT to revive with 100% points and a 10s shield.</p>
+        
+        <p><b>5. Weekly Reset</b><br>
+        The tournament ends every Sunday at 00:00 UTC. Payouts are made every Monday.</p>
+    </div>
+    <button id="close-rules" style="margin-top: 15px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 8px; border-radius: 4px; cursor: pointer; font-family: Georgia; font-size: 12px;">Close</button>
+</div>
+
+<!-- MODAL DEL LEADERBOARD -->
+<div id="leaderboard-modal">
+    <h2 style="color: #e6b84d; text-align: center; margin-bottom: 10px; font-family: 'Cinzel', serif; font-size: 16px;">🏆 LEADERBOARD</h2>
+    <div class="leaderboard-tabs">
+        <div class="leaderboard-tab active" id="tab-free">Free League</div>
+        <div class="leaderboard-tab" id="tab-pro">Pro League (1 USDT)</div>
+    </div>
+    <div id="leaderboard-content" style="max-height: 300px; overflow-y: auto;">
+        <!-- Aquí se cargarán los datos del Worker -->
+        <p style="text-align: center; color: #9a8a6a; font-size: 12px; margin-top: 20px;">Loading...</p>
+    </div>
+    <button id="close-leaderboard" style="margin-top: 15px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 8px; border-radius: 4px; cursor: pointer; font-family: Georgia; font-size: 12px;">Close</button>
 </div>
 
 <div id="app"></div>
@@ -264,7 +321,7 @@
 <div id="mpModal"><h3>👥 Multiplayer</h3><span class="close" id="mpClose">✕</span><p style="font-size:13px;color:#9a8a6a;line-height:1.6">Adventure alongside friends in the same world.</p><div class="setRow"><label>Display name</label><input class="mpin" id="mpName" maxlength="14" style="width:200px"></div><div class="setRow"><label>Host IP</label><input class="mpin" id="mpHost" placeholder="192.168.1.10" style="width:200px"></div><div class="setRow"><label>Port</label><input class="mpin" id="mpPort" value="8787" style="width:90px"></div><div id="mpStatus" style="margin:10px 0;color:#9fd8ff;font-size:14px">Not connected</div><button class="btn small" id="mpConnect" style="width:100%">Connect</button><button class="btn small" id="mpDisconnect" style="width:100%;display:none">Disconnect</button><div id="mpChatWrap" style="display:none;margin-top:14px"><div id="mpChatLog" style="height:120px;overflow-y:auto;background:rgba(0,0,0,.3);border:1px solid #2a2218;border-radius:6px;padding:8px;font-size:13px;line-height:1.5;margin-bottom:6px"></div><div style="display:flex;gap:6px"><input class="mpin" id="mpChatInput" maxlength="120" placeholder="Say something…" style="flex:1"><button class="btn small" id="mpChatSend">Send</button></div></div></div>
 <div id="settingsModal"><h3>⚙ Settings</h3><span class="close" id="settingsClose">✕</span><div class="tabs" id="setTabs"><div class="tab on" data-stab="audio">Audio</div><div class="tab" data-stab="graphics">Graphics</div><div class="tab" data-stab="gameplay">Gameplay</div><div class="tab" data-stab="loot">Loot</div><div class="tab" data-stab="controls">Controls</div><div class="tab" data-stab="saves">Saves</div></div><div class="setPane" data-pane="audio"><div class="setRow"><label>Master Volume</label><input type="range" id="setVol" min="0" max="100"></div><div class="setRow"><label>Music</label><span class="switch" id="setMusic"></span></div><div class="setRow"><label>Sound Effects</label><span class="switch" id="setSfx"></span></div></div><div class="setPane" data-pane="graphics" style="display:none"><div class="setRow"><label>Quality Preset</label><span class="seg" id="setQuality"></span></div><div class="setRow"><label>Shadows</label><span class="switch" id="setShadows"></span></div><div class="setRow"><label>Post-FX (Bloom)</label><span class="switch" id="setPostfx"></span></div></div><div class="setPane" data-pane="gameplay" style="display:none"><div class="setRow"><label>Screen Shake</label><span class="switch" id="setShake"></span></div><div class="setRow"><label>Damage Numbers</label><span class="switch" id="setDmg"></span></div></div><div class="setPane" data-pane="saves" style="display:none"><button class="btn small" id="saveDownload" style="flex:1">⬇ Download File</button></div><button class="btn small" id="setDone" style="margin-top:16px;width:100%">Done</button></div>
 <div id="helpModal"><h3>⚔️ How to Play</h3><span class="close" id="helpClose">✕</span><div class="keyrow"><span class="kbd">Left-click</span><span class="kd">Move, or attack the enemy under the cursor</span></div><div class="keyrow"><span class="kbd">Right-click</span><span class="kd">Cast your selected skill toward the cursor</span></div><button class="btn small" id="helpGo" style="margin-top:16px">Got it</button></div>
-<div id="loading"><div class="ldr"></div><div id="loadtitle">SUMMONING THE A.D.M...</div><div class="ldiv"></div><div id="loadsub">Preparing the dark moon (Please wait on slow connections)</div><div id="loadtip"></div></div>
+<div id="loading"><div class="ldr"></div><div id="loadtitle">SUMMONING THE A.D.M...</div><div class="ldiv"></div><div id="loadsub">Preparing the dark moon (Please wait)</div><div id="loadtip"></div></div>
 
 <div id="selectScreen" class="screen" style="display:none">
   <h1>SANCTUARY: A.D.M.</h1><h2>Choose Your Hero</h2>
@@ -350,16 +407,87 @@ document.addEventListener('DOMContentLoaded', () => {
     const YOUR_WORKER_URL = "https://sanctuary-payments.raulnaranzar.workers.dev"; 
     const ADSGRAM_BLOCK_ID = "56737";
 
+    // Ocultar HUD al inicio
+    document.getElementById('monetization-hud').style.display = 'none';
+
+    // Escuchar cuando el jugador entra al juego para mostrar el HUD
+    const selectScreen = document.getElementById('selectScreen');
+    if (selectScreen) {
+        const observer = new MutationObserver(() => {
+            const hud = document.getElementById('monetization-hud');
+            if (selectScreen.style.display === 'none') {
+                hud.style.display = 'block'; // Mostrar HUD en el juego
+            } else {
+                hud.style.display = 'none'; // Ocultar HUD en el menú
+            }
+        });
+        observer.observe(selectScreen, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    // --- WALLET LOGIC ---
+    const btnWallet = document.getElementById('btn-wallet');
+    const walletModal = document.getElementById('wallet-modal');
+    const closeWallet = document.getElementById('close-wallet');
+    const walletInput = document.getElementById('wallet-input');
+    const saveWallet = document.getElementById('save-wallet');
+
+    if(btnWallet) btnWallet.onclick = () => {
+        walletInput.value = localStorage.getItem('sanctuary_wallet') || '';
+        walletModal.style.display = 'block';
+    };
+    if(closeWallet) closeWallet.onclick = () => walletModal.style.display = 'none';
+    if(saveWallet) saveWallet.onclick = () => {
+        localStorage.setItem('sanctuary_wallet', walletInput.value.trim());
+        alert("Wallet saved!");
+        walletModal.style.display = 'none';
+    };
+
+    // --- REGLAS Y LEADERBOARD ---
+    const btnRules = document.getElementById('btn-rules');
+    const rulesModal = document.getElementById('rules-modal');
+    const closeRules = document.getElementById('close-rules');
+    const btnLeaderboard = document.getElementById('btn-leaderboard');
+    const leaderboardModal = document.getElementById('leaderboard-modal');
+    const closeLeaderboard = document.getElementById('close-leaderboard');
+    const tabFree = document.getElementById('tab-free');
+    const tabPro = document.getElementById('tab-pro');
+    const leaderboardContent = document.getElementById('leaderboard-content');
+
+    if(btnRules) btnRules.onclick = () => rulesModal.style.display = 'block';
+    if(closeRules) closeRules.onclick = () => rulesModal.style.display = 'none';
+    if(btnLeaderboard) btnLeaderboard.onclick = () => { leaderboardModal.style.display = 'block'; cargarLeaderboard('free'); };
+    if(closeLeaderboard) closeLeaderboard.onclick = () => leaderboardModal.style.display = 'none';
+    
+    if(tabFree) tabFree.onclick = () => { tabFree.classList.add('active'); tabPro.classList.remove('active'); cargarLeaderboard('free'); };
+    if(tabPro) tabPro.onclick = () => { tabPro.classList.add('active'); tabFree.classList.remove('active'); cargarLeaderboard('pro'); };
+
+    async function cargarLeaderboard(type) {
+        leaderboardContent.innerHTML = '<p style="text-align: center; color: #9a8a6a; font-size: 12px; margin-top: 20px;">Loading...</p>';
+        try {
+            const response = await fetch(`${YOUR_WORKER_URL}/get-ranking?type=${type}`);
+            const data = await response.json();
+            if (data.ranking && data.ranking.length > 0) {
+                let html = '';
+                data.ranking.forEach((player, index) => {
+                    html += `<div class="leaderboard-row"><span>${index + 1}. ${player.name}</span><span>${player.points} pts</span></div>`;
+                });
+                leaderboardContent.innerHTML = html;
+            } else {
+                leaderboardContent.innerHTML = '<p style="text-align: center; color: #9a8a6a; font-size: 12px; margin-top: 20px;">No scores yet.</p>';
+            }
+        } catch (err) {
+            leaderboardContent.innerHTML = '<p style="text-align: center; color: #ff4444; font-size: 12px; margin-top: 20px;">Error loading leaderboard.</p>';
+        }
+    }
+
     // --- 1. LÓGICA DE LA TIENDA ---
     const btnStore = document.getElementById('btn-store');
     const storeModal = document.getElementById('store-modal');
     const closeStore = document.getElementById('close-store');
-    const btnWallet = document.getElementById('btn-wallet');
     const btnCommunity = document.getElementById('btn-community');
     
     if(btnStore) btnStore.onclick = () => storeModal.style.display = 'block';
     if(closeStore) closeStore.onclick = () => storeModal.style.display = 'none';
-    if(btnWallet) btnWallet.onclick = () => alert("Connect Wallet (Coming soon)");
     if(btnCommunity) btnCommunity.onclick = () => window.open('https://t.me/sanctuary_oficial', '_blank');
 
     document.querySelectorAll('.buy-btn').forEach(btn => {
@@ -374,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 if (data.invoiceLink) window.open(data.invoiceLink, '_blank');
                 else alert("Error generating payment.");
-            } catch (err) { alert("Connecting to payment server... (Worker not configured)"); }
+            } catch (err) { alert("Connecting to payment server..."); }
         };
     });
 
@@ -432,7 +560,36 @@ document.addEventListener('DOMContentLoaded', () => {
         btnContainer.appendChild(btnAd);
         const quitBtn = document.getElementById('quitBtn');
         if(quitBtn) overScreen.insertBefore(btnContainer, quitBtn);
+        
+        // Enviar puntuación al Worker
+        enviarPuntuacionAlWorker();
     };
+
+    // --- 3. LÓGICA DE ENVÍO DE PUNTUACIÓN ---
+    async function enviarPuntuacionAlWorker() {
+        const wallet = localStorage.getItem('sanctuary_wallet');
+        if (!wallet) return;
+
+        const nivel = window.player ? window.player.level : 1;
+        const profundidad = window.character ? window.character.maxDepth : 0;
+        const kills = window.player ? window.player.kills : 0;
+        
+        const puntos = (nivel * 50) + (profundidad * 100) + (kills * 1);
+
+        try {
+            await fetch(`${YOUR_WORKER_URL}/submit-score`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: window.character ? window.character.name : 'Unknown',
+                    wallet: wallet,
+                    points: puntos,
+                    level: nivel,
+                    depth: profundidad,
+                    kills: kills
+                })
+            });
+        } catch (err) { console.log("Error sending score:", err); }
+    }
 });
 </script>
 </body>
