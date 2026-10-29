@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sanctuary's End — 3D</title>
+<title>Sanctuary: A.D.M. — 3D ARPG</title>
 <link href="vendor/fonts/cinzel/cinzel.css" rel="stylesheet">
+<!-- SDK de AdsGram -->
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <link rel="modulepreload" href="./vendor/three-0.184.0/build/three.webgpu.js">
 <link rel="modulepreload" href="./vendor/three-0.184.0/build/three.core.js">
 <link rel="modulepreload" href="./vendor/three-0.184.0/build/three.tsl.js">
@@ -112,17 +114,24 @@
   #tooltip{position:fixed;z-index:40;pointer-events:none;background:rgba(10,7,4,.96);border:1px solid #4a3a28;border-radius:6px;padding:10px 12px;max-width:280px;font-size:13px;color:#c8b89a;display:none;box-shadow:0 4px 20px rgba(0,0,0,.8);}
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:4;box-shadow:inset 0 0 180px rgba(0,0,0,.66),inset 0 0 60px rgba(0,0,0,.3);}
   
-  /* ESTILOS DE MONETIZACIÓN */
+  /* ESTILOS DE MONETIZACIÓN (COMPACTOS) */
   #monetization-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 9999; pointer-events: none; font-family: 'Cinzel', Georgia, serif; }
-  .pool-panel { background: rgba(13, 9, 5, 0.9); padding: 12px 20px; border-radius: 8px; border: 2px solid #e6b84d; box-shadow: 0 0 15px rgba(230,184,77,0.4); pointer-events: auto; }
-  .pool-title { font-size: 14px; letter-spacing: 1px; color: #e6b84d; }
-  #pool-amount { font-size: 26px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 8px rgba(0,255,204,0.5); }
-  .leader-text { font-size: 12px; margin-top: 4px; color: #ccc; }
-  .action-btns { display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
-  #btn-store, #btn-wallet { padding: 10px 20px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; font-family: 'Cinzel', Georgia, serif; text-shadow: 0 1px 2px #000; box-shadow: inset 0 1px 0 rgba(255,220,150,0.2), 0 4px 6px rgba(0,0,0,0.5); }
-  #btn-store { background: linear-gradient(180deg, #3a2418, #1a130c); color: #e6b84d; border: 2px solid #6a4a28; }
-  #btn-wallet { background: linear-gradient(180deg, #1a2a3a, #0a1018); color: #00ffcc; border: 2px solid #005a5a; }
-  #store-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 500px; background: rgba(13, 9, 5, 0.95); border: 3px solid #e6b84d; border-radius: 10px; padding: 20px; z-index: 10000; color: #d8c4a0; font-family: Georgia, serif; box-shadow: 0 0 50px rgba(0,0,0,0.9); }
+  .pool-panel { background: rgba(13, 9, 5, 0.9); padding: 6px 12px; border-radius: 6px; border: 1px solid #e6b84d; box-shadow: 0 0 10px rgba(230,184,77,0.3); pointer-events: auto; }
+  .pool-title { font-size: 10px; letter-spacing: 1px; color: #e6b84d; }
+  #pool-amount { font-size: 16px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 5px rgba(0,255,204,0.4); }
+  .leader-text { font-size: 9px; margin-top: 2px; color: #ccc; }
+  .action-btns { display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+  #btn-store, #btn-wallet, #btn-community { padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; font-family: 'Cinzel', Georgia, serif; text-shadow: 0 1px 1px #000; box-shadow: inset 0 1px 0 rgba(255,220,150,0.2), 0 2px 4px rgba(0,0,0,0.5); text-align: center; }
+  #btn-store { background: linear-gradient(180deg, #3a2418, #1a130c); color: #e6b84d; border: 1px solid #6a4a28; }
+  #btn-wallet { background: linear-gradient(180deg, #1a2a3a, #0a1018); color: #00ffcc; border: 1px solid #005a5a; }
+  #btn-community { background: linear-gradient(180deg, #1a3a2a, #0a1810); color: #00ff88; border: 1px solid #005a2a; }
+  
+  #store-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 450px; background: rgba(13, 9, 5, 0.95); border: 2px solid #e6b84d; border-radius: 8px; padding: 15px; z-index: 10000; color: #d8c4a0; font-family: Georgia, serif; box-shadow: 0 0 30px rgba(0,0,0,0.9); }
+  .store-item { background: rgba(40, 30, 18, 0.5); border: 1px solid #5a4226; padding: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .store-item-title { color: #e6b84d; font-weight: bold; font-size: 14px; }
+  .store-item-desc { font-size: 10px; color: #9a8a6a; }
+  .buy-btn { background: #3a2418; color: #e6b84d; border: 1px solid #6a4a28; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
+  .ad-btn { background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-top: 4px; width: 100%; }
 </style>
 </head>
 <body>
@@ -136,29 +145,38 @@
     <div class="action-btns">
         <button id="btn-store">🛒 STORE</button>
         <button id="btn-wallet">💳 CONNECT WALLET</button>
+        <button id="btn-community">✈️ JOIN COMMUNITY</button>
     </div>
 </div>
 
 <!-- MODAL DE LA TIENDA -->
 <div id="store-modal">
-    <h2 style="color: #e6b84d; text-align: center; margin-bottom: 20px; font-family: 'Cinzel', serif;">SANCTUARY STORE</h2>
-    <div style="display: flex; flex-direction: column; gap: 15px;">
-        <div style="background: rgba(40, 30, 18, 0.5); border: 1px solid #5a4226; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="color: #e6b84d; text-align: center; margin-bottom: 15px; font-family: 'Cinzel', serif; font-size: 18px;">SANCTUARY STORE</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <!-- Gold Pouch -->
+        <div class="store-item">
             <div>
-                <div style="color: #ff9a3a; font-weight: bold; font-size: 18px;">1,000 Gold</div>
-                <div style="font-size: 12px; color: #9a8a6a;">Instantly boost your wealth</div>
+                <div class="store-item-title">Gold Pouch</div>
+                <div class="store-item-desc">2,500 Gold + 1 Health Potion</div>
             </div>
-            <button class="buy-btn" data-item="gold" data-price="0.25" style="background: #3a2418; color: #e6b84d; border: 1px solid #6a4a28; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">0.25 USDT</button>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <button class="buy-btn" data-item="gold" data-price="0.25">0.25 USDT</button>
+                <button class="ad-btn" data-item="gold_ad">📺 Watch Ad (100 Gold)</button>
+            </div>
         </div>
-        <div style="background: rgba(40, 30, 18, 0.5); border: 1px solid #5a4226; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <!-- Legendary Loot Chest -->
+        <div class="store-item">
             <div>
-                <div style="color: #00ffcc; font-weight: bold; font-size: 18px;">Legendary Loot Chest</div>
-                <div style="font-size: 12px; color: #9a8a6a;">Guaranteed Rare or Unique item</div>
+                <div class="store-item-title" style="color:#00ffcc;">Legendary Loot Chest</div>
+                <div class="store-item-desc">1 Unique Item + 5,000 Gold + 3 Potions</div>
             </div>
-            <button class="buy-btn" data-item="chest" data-price="0.50" style="background: #3a2418; color: #e6b84d; border: 1px solid #6a4a28; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">0.50 USDT</button>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <button class="buy-btn" data-item="chest" data-price="0.50">0.50 USDT</button>
+                <button class="ad-btn" data-item="chest_ad">📺 Watch Ad (200 Gold)</button>
+            </div>
         </div>
     </div>
-    <button id="close-store" style="margin-top: 20px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 10px; border-radius: 4px; cursor: pointer; font-family: Georgia;">Close</button>
+    <button id="close-store" style="margin-top: 15px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 8px; border-radius: 4px; cursor: pointer; font-family: Georgia; font-size: 12px;">Close</button>
 </div>
 
 <div id="app"></div>
@@ -174,7 +192,7 @@
     <button class="tbtn" id="diffBtn">Normal</button>
     <button class="tbtn" id="soundBtn">🔊</button>
     <button class="tbtn" id="setBtn">⚙</button>
-    <button class="tbtn" id="mpBtn">👥</button>
+    <button class="tbtn" id="mpBtn" style="display:none;">👥</button>
     <button class="tbtn" id="townBtn" style="display:none">To Town (T)</button>
     <button class="tbtn" id="wpBtn">🗺 Map (G)</button>
     <button class="tbtn" id="skillBtn">Skills (K)<span class="pip" id="skillPip" style="display:none">0</span></button>
@@ -246,17 +264,17 @@
 <div id="mpModal"><h3>👥 Multiplayer</h3><span class="close" id="mpClose">✕</span><p style="font-size:13px;color:#9a8a6a;line-height:1.6">Adventure alongside friends in the same world.</p><div class="setRow"><label>Display name</label><input class="mpin" id="mpName" maxlength="14" style="width:200px"></div><div class="setRow"><label>Host IP</label><input class="mpin" id="mpHost" placeholder="192.168.1.10" style="width:200px"></div><div class="setRow"><label>Port</label><input class="mpin" id="mpPort" value="8787" style="width:90px"></div><div id="mpStatus" style="margin:10px 0;color:#9fd8ff;font-size:14px">Not connected</div><button class="btn small" id="mpConnect" style="width:100%">Connect</button><button class="btn small" id="mpDisconnect" style="width:100%;display:none">Disconnect</button><div id="mpChatWrap" style="display:none;margin-top:14px"><div id="mpChatLog" style="height:120px;overflow-y:auto;background:rgba(0,0,0,.3);border:1px solid #2a2218;border-radius:6px;padding:8px;font-size:13px;line-height:1.5;margin-bottom:6px"></div><div style="display:flex;gap:6px"><input class="mpin" id="mpChatInput" maxlength="120" placeholder="Say something…" style="flex:1"><button class="btn small" id="mpChatSend">Send</button></div></div></div>
 <div id="settingsModal"><h3>⚙ Settings</h3><span class="close" id="settingsClose">✕</span><div class="tabs" id="setTabs"><div class="tab on" data-stab="audio">Audio</div><div class="tab" data-stab="graphics">Graphics</div><div class="tab" data-stab="gameplay">Gameplay</div><div class="tab" data-stab="loot">Loot</div><div class="tab" data-stab="controls">Controls</div><div class="tab" data-stab="saves">Saves</div></div><div class="setPane" data-pane="audio"><div class="setRow"><label>Master Volume</label><input type="range" id="setVol" min="0" max="100"></div><div class="setRow"><label>Music</label><span class="switch" id="setMusic"></span></div><div class="setRow"><label>Sound Effects</label><span class="switch" id="setSfx"></span></div></div><div class="setPane" data-pane="graphics" style="display:none"><div class="setRow"><label>Quality Preset</label><span class="seg" id="setQuality"></span></div><div class="setRow"><label>Shadows</label><span class="switch" id="setShadows"></span></div><div class="setRow"><label>Post-FX (Bloom)</label><span class="switch" id="setPostfx"></span></div></div><div class="setPane" data-pane="gameplay" style="display:none"><div class="setRow"><label>Screen Shake</label><span class="switch" id="setShake"></span></div><div class="setRow"><label>Damage Numbers</label><span class="switch" id="setDmg"></span></div></div><div class="setPane" data-pane="saves" style="display:none"><button class="btn small" id="saveDownload" style="flex:1">⬇ Download File</button></div><button class="btn small" id="setDone" style="margin-top:16px;width:100%">Done</button></div>
 <div id="helpModal"><h3>⚔️ How to Play</h3><span class="close" id="helpClose">✕</span><div class="keyrow"><span class="kbd">Left-click</span><span class="kd">Move, or attack the enemy under the cursor</span></div><div class="keyrow"><span class="kbd">Right-click</span><span class="kd">Cast your selected skill toward the cursor</span></div><button class="btn small" id="helpGo" style="margin-top:16px">Got it</button></div>
-<div id="loading"><div class="ldr"></div><div id="loadtitle">Summoning the world…</div><div class="ldiv"></div><div id="loadsub"></div><div id="loadtip"></div></div>
+<div id="loading"><div class="ldr"></div><div id="loadtitle">SUMMONING THE A.D.M...</div><div class="ldiv"></div><div id="loadsub">Preparing the dark moon (Please wait on slow connections)</div><div id="loadtip"></div></div>
 
 <div id="selectScreen" class="screen" style="display:none">
-  <h1>SANCTUARY'S END</h1><h2>Choose Your Hero</h2>
+  <h1>SANCTUARY: A.D.M.</h1><h2>Choose Your Hero</h2>
   <div id="slots"></div>
   <button class="btn small" id="menuSettings" style="margin-top:14px">⚙ Settings</button>
-  <button class="btn small" id="menuMP" style="margin-top:6px">👥 Multiplayer</button>
+  <button class="btn small" id="menuMP" style="display: none; margin-top:6px">👥 Multiplayer</button>
   <div class="hint">Progress saves automatically to this browser. Three character slots.</div>
 </div>
 <div id="createScreen" class="screen" style="display:none">
-  <h1>SANCTUARY'S END</h1><h2>Name Your Hero</h2>
+  <h1>SANCTUARY: A.D.M.</h1><h2>Name Your Hero</h2>
   <input id="nameInput" maxlength="16" placeholder="Enter a name…">
   <div id="classPick"></div>
   <button class="btn" id="createBtn">Create</button>
@@ -324,55 +342,94 @@
 <script defer src="js/25-waypoints.js"></script>
 <script defer src="js/26-boot.js"></script>
 
-<!-- SCRIPT DE MONETIZACIÓN -->
+<!-- ========================================== -->
+<!-- SCRIPT DE MONETIZACIÓN (TODO EN UNO)       -->
+<!-- ========================================== -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Tienda
+    const YOUR_WORKER_URL = "https://sanctuary-payments.raulnaranzar.workers.dev"; 
+    const ADSGRAM_BLOCK_ID = "56737";
+
+    // --- 1. LÓGICA DE LA TIENDA ---
     const btnStore = document.getElementById('btn-store');
     const storeModal = document.getElementById('store-modal');
     const closeStore = document.getElementById('close-store');
     const btnWallet = document.getElementById('btn-wallet');
+    const btnCommunity = document.getElementById('btn-community');
     
     if(btnStore) btnStore.onclick = () => storeModal.style.display = 'block';
     if(closeStore) closeStore.onclick = () => storeModal.style.display = 'none';
-    if(btnWallet) btnWallet.onclick = () => alert("Aquí se abrirá TON Connect (Wallet)");
+    if(btnWallet) btnWallet.onclick = () => alert("Connect Wallet (Coming soon)");
+    if(btnCommunity) btnCommunity.onclick = () => window.open('https://t.me/sanctuary_oficial', '_blank');
 
     document.querySelectorAll('.buy-btn').forEach(btn => {
-        btn.onclick = (e) => {
+        btn.onclick = async (e) => {
             const item = e.target.getAttribute('data-item');
             const price = e.target.getAttribute('data-price');
-            alert(`Redirigiendo a pago de ${price} USDT por ${item}...`);
+            try {
+                const response = await fetch(`${YOUR_WORKER_URL}/create-invoice`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item: item, price: price })
+                });
+                const data = await response.json();
+                if (data.invoiceLink) window.open(data.invoiceLink, '_blank');
+                else alert("Error generating payment.");
+            } catch (err) { alert("Connecting to payment server... (Worker not configured)"); }
         };
     });
 
-    // 2. Pantalla de Muerte (Parche)
+    document.querySelectorAll('.ad-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (typeof window.Adsgram !== 'undefined') {
+                const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+                AdController.show().then((result) => {
+                    if (result.done) alert("¡Anuncio completado! Recibes 100 Gold.");
+                }).catch((err) => { alert("Error loading ad."); });
+            } else { alert("AdsGram not loaded."); }
+        };
+    });
+
+    // --- 2. LÓGICA DE LA PANTALLA DE MUERTE ---
     const originalGameOver = window.gameOver;
     window.gameOver = function() {
-        if (originalGameOver) originalGameOver();
-        
+        if (originalGameOver) originalGameOver(); 
         const overScreen = document.getElementById('overScreen');
         if(!overScreen) return;
-        
         const oldBtns = document.getElementById('monetization-death-buttons');
         if (oldBtns) oldBtns.remove();
 
         const btnContainer = document.createElement('div');
         btnContainer.id = 'monetization-death-buttons';
-        btnContainer.style.cssText = 'display: flex; flex-direction: column; gap: 15px; margin-top: 20px; align-items: center;';
+        btnContainer.style.cssText = 'display: flex; flex-direction: column; gap: 10px; margin-top: 20px; align-items: center;';
 
         const btnPay = document.createElement('button');
         btnPay.className = 'btn';
-        btnPay.innerHTML = '⚡ Revive Here (0.15 USDT) <br><span style="font-size:12px;color:#ccc">100% HP, 100% EXP</span>';
-        btnPay.onclick = () => { alert("Conectando con TON para cobrar 0.15 USDT..."); };
+        btnPay.innerHTML = '⚡ Revive Here (0.25 USDT) <br><span style="font-size:12px;color:#ccc">100% HP, 100% EXP, 10s Shield</span>';
+        btnPay.onclick = async () => {
+            try {
+                const response = await fetch(`${YOUR_WORKER_URL}/create-invoice`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item: 'revive', price: 0.25 })
+                });
+                const data = await response.json();
+                if (data.invoiceLink) window.open(data.invoiceLink, '_blank');
+            } catch (err) { alert("Connecting to payment server..."); }
+        };
 
         const btnAd = document.createElement('button');
         btnAd.className = 'btn small';
-        btnAd.innerHTML = '📺 Watch Ad to Revive <br><span style="font-size:12px;color:#ccc">Keep 50% HP/EXP</span>';
-        btnAd.onclick = () => { alert("Reproduciendo Anuncio (AdsGram)..."); };
+        btnAd.innerHTML = '📺 Watch Ad to Revive <br><span style="font-size:12px;color:#ccc">Keep 75% EXP, 5s Shield</span>';
+        btnAd.onclick = () => {
+            if (typeof window.Adsgram !== 'undefined') {
+                const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+                AdController.show().then((result) => {
+                    if (result.done) alert("¡Anuncio completado! Revives with 75% EXP.");
+                }).catch((err) => { alert("Error loading ad."); });
+            } else { alert("AdsGram not loaded."); }
+        };
 
         btnContainer.appendChild(btnPay);
         btnContainer.appendChild(btnAd);
-        
         const quitBtn = document.getElementById('quitBtn');
         if(quitBtn) overScreen.insertBefore(btnContainer, quitBtn);
     };
