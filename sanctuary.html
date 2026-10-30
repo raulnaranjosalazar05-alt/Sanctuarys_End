@@ -208,13 +208,13 @@
         Earn points by leveling up (x50), reaching deeper floors (x100), and slaying monsters (Normal 1pt, Elite 5pts, Boss 50pts). Compete for Gold, Potions, and Rare Items!</p>
         
         <p><b>2. Pro League (Entry: 1.00 USDT)</b><br>
-        Pay the entry fee to compete for the Weekly Prize Pool in USDT (BEP20). 80% of all entry fees go to the prize pool. The Top 1 player wins it all!</p>
+        Pay the entry fee to compete for the Weekly Prize Pool in USDT (BEP20). 80% of all entry fees go to the prize pool. The Top 1 player wins it all! (Only real players compete here).</p>
         
         <p><b>3. The Store</b><br>
         Buy Gold and Legendary Loot Chests with USDT. All store purchases are final.</p>
         
         <p><b>4. Ads & Revive</b><br>
-        Watch an ad to revive (keep 75% of points, limit 1 per run). Or pay 0.25 USDT to revive with 100% points and a 10s shield.</p>
+        Watch an ad to revive (keep 75% of points, limit 1 per run). Or pay 0.25 USDT to revive with 100% points and a 30s shield (unlimited).</p>
         
         <p><b>5. Weekly Reset</b><br>
         The tournament ends every Sunday at 00:00 UTC. Payouts are made every Monday.</p>
@@ -230,7 +230,6 @@
         <div class="leaderboard-tab" id="tab-pro">Pro League (1 USDT)</div>
     </div>
     <div id="leaderboard-content" style="max-height: 300px; overflow-y: auto;">
-        <!-- Aquí se cargarán los datos del Worker -->
         <p style="text-align: center; color: #9a8a6a; font-size: 12px; margin-top: 20px;">Loading...</p>
     </div>
     <button id="close-leaderboard" style="margin-top: 15px; width: 100%; background: #2a1f14; color: #c4a878; border: 1px solid #4a3a28; padding: 8px; border-radius: 4px; cursor: pointer; font-family: Georgia; font-size: 12px;">Close</button>
@@ -532,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnPay = document.createElement('button');
         btnPay.className = 'btn';
-        btnPay.innerHTML = '⚡ Revive Here (0.25 USDT) <br><span style="font-size:12px;color:#ccc">100% HP, 100% EXP, 10s Shield</span>';
+        btnPay.innerHTML = '⚡ Revive Here (0.25 USDT) <br><span style="font-size:12px;color:#ccc">100% HP, 100% EXP, 30s Shield (Unlimited)</span>';
         btnPay.onclick = async () => {
             try {
                 const response = await fetch(`${YOUR_WORKER_URL}/create-invoice`, {
@@ -546,12 +545,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const btnAd = document.createElement('button');
         btnAd.className = 'btn small';
-        btnAd.innerHTML = '📺 Watch Ad to Revive <br><span style="font-size:12px;color:#ccc">Keep 75% EXP, 5s Shield</span>';
+        btnAd.innerHTML = '📺 Watch Ad to Revive <br><span style="font-size:12px;color:#ccc">Keep 75% EXP, 15s Shield (1 per run)</span>';
         btnAd.onclick = () => {
             if (typeof window.Adsgram !== 'undefined') {
                 const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
                 AdController.show().then((result) => {
-                    if (result.done) alert("¡Anuncio completado! Revives with 75% EXP.");
+                    if (result.done) alert("¡Anuncio completado! Revives with 75% EXP and 15s Shield.");
                 }).catch((err) => { alert("Error loading ad."); });
             } else { alert("AdsGram not loaded."); }
         };
